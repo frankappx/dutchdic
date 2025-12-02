@@ -361,7 +361,7 @@ export default function App() {
 
   // Common Logo Component: Intelligent Image with Emoji Fallback
   const renderLogo = () => (
-    <div className="mb-8 flex justify-center items-center select-none">
+    <div className="mb-1 flex justify-center items-center select-none">
        {/* 
           Using string path 'logo.png'. 
           NOTE: For Vercel/Production, ensure 'logo.png' is inside a 'public' folder.
