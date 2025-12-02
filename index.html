@@ -1,178 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <script>
-      // 🛡️ NUCLEAR ERROR SUPPRESSION SYSTEM v2.2 🛡️
-      (function() {
-        // 1. SUPPRESS CONSOLE ERRORS
-        const ignoreKeywords = ["quota", "gemini", "exceeded", "429", "resource exhausted", "too many requests", "failed to fetch", "network error", "400", "bad request"];
-        
-        const shouldSuppress = (msg) => {
-          if (!msg) return false;
-          const str = (typeof msg === 'object' ? JSON.stringify(msg) : String(msg)).toLowerCase();
-          return ignoreKeywords.some(kw => str.includes(kw));
-        };
-
-        const originalError = console.error;
-        const originalWarn = console.warn;
-        
-        console.error = function(...args) {
-          if (args.some(a => shouldSuppress(a))) return;
-          originalError.apply(console, args);
-        };
-        
-        console.warn = function(...args) {
-          if (args.some(a => shouldSuppress(a))) return;
-          originalWarn.apply(console, args);
-        };
-
-        // 2. SUPPRESS GLOBAL EVENTS
-        window.addEventListener("error", (e) => {
-          if (shouldSuppress(e.message) || shouldSuppress(e.error)) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            return true;
-          }
-        }, true);
-
-        window.addEventListener("unhandledrejection", (e) => {
-          const reason = e.reason || "";
-          if (shouldSuppress(reason.message) || shouldSuppress(reason)) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-          }
-        }, true);
-
-        // 3. NETWORK INTERCEPTOR (The Firewall)
-        const originalFetch = window.fetch;
-        window.fetch = async function(...args) {
-          let url = '';
-          try {
-            const input = args[0];
-            if (typeof input === 'string') url = input;
-            else if (input instanceof URL) url = input.href;
-            else if (input && typeof input === 'object' && 'url' in input) url = input.url;
-            else url = String(input);
-            url = url.toLowerCase();
-          } catch(err) { url = ''; }
-
-          const isGemini = url.includes('googleapis') || url.includes('generativelanguage') || url.includes('gemini');
-
-          try {
-            const response = await originalFetch(...args);
-            // If Gemini fails with non-200, return a fake 200 OK to fool the SDK
-            if (isGemini && !response.ok) {
-              return new Response(JSON.stringify({ candidates: [] }), { 
-                status: 200, 
-                statusText: 'OK', 
-                headers: { 'Content-Type': 'application/json' } 
-              });
-            }
-            return response;
-          } catch (e) {
-            // If network fails entirely
-            if (isGemini) {
-               return new Response(JSON.stringify({ candidates: [] }), { status: 200, headers: {'Content-Type': 'application/json'} });
-            }
-            throw e;
-          }
-        };
-
-        // 4. DOM MUTATION OBSERVER & SWEEPER (The Janitor)
-        const hideElement = (el) => {
-           el.style.opacity = '0';
-           el.style.pointerEvents = 'none';
-           el.style.display = 'none';
-           el.style.visibility = 'hidden';
-           el.setAttribute('aria-hidden', 'true');
-           if (el.parentNode) el.parentNode.removeChild(el);
-        };
-
-        const checkAndHide = () => {
-           // Text content scan
-           const textToFind = ["exceeded quota", "failed to call the gemini api"];
-           
-           // Walker to find text nodes efficiently
-           const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
-           let node;
-           while (node = walker.nextNode()) {
-              const text = node.nodeValue.toLowerCase();
-              if (textToFind.some(t => text.includes(t))) {
-                  // Find the container popup
-                  let parent = node.parentElement;
-                  while (parent && parent !== document.body) {
-                      const style = window.getComputedStyle(parent);
-                      if (style.position === 'fixed' || style.position === 'absolute' || style.zIndex > 100) {
-                          hideElement(parent);
-                          break;
-                      }
-                      parent = parent.parentElement;
-                  }
-              }
-           }
-        };
-
-        // Constant sweep (20ms for instant removal)
-        setInterval(checkAndHide, 20);
-
-      })();
-    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LingoPop AI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Modern Dutch Dictionary</title>
+    
+    <!-- Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Tailwind CSS Engine -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tailwind Custom Theme Config -->
     <script>
       tailwind.config = {
         theme: {
           extend: {
             colors: {
-              pop: {
-                yellow: '#FFD93D',
-                purple: '#6C5CE7',
-                pink: '#FF7675',
-                teal: '#00CEC9',
-                dark: '#000000'
-              }
+              'pop-purple': '#8B5CF6',
+              'pop-pink': '#EC4899',
+              'pop-yellow': '#FBBF24',
+              'pop-teal': '#14B8A6',
+              'pop-dark': '#1F2937',
             },
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
+            animation: {
+              'fade-in': 'fadeIn 0.5s ease-out',
+              'pulse': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              }
             }
           }
         }
       }
     </script>
+
+    <!-- Custom CSS for 3D Effects & Utilities -->
     <style>
-      .no-scrollbar::-webkit-scrollbar { display: none; }
-      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       .perspective-1000 { perspective: 1000px; }
       .transform-style-3d { transform-style: preserve-3d; }
       .backface-hidden { backface-visibility: hidden; }
       .rotate-y-180 { transform: rotateY(180deg); }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       
-      /* Aggressive CSS Hiding for anything that looks like a system toast */
-      [class*="toast"], [class*="snackbar"], [class*="error"], [class*="alert"] {
-         opacity: 0 !important;
-         pointer-events: none !important;
-      }
-      /* But allow our own modal */
-      .animate-fade-in [class*="error"] {
-         opacity: 1 !important;
-         pointer-events: auto !important;
-      }
+      /* Ensure text doesn't look too small on mobile */
+      html { -webkit-text-size-adjust: 100%; }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0"
-  }
-}
-</script>
-</head>
-  <body class="bg-gray-50 text-pop-dark antialiased selection:bg-pop-yellow">
+
+    <!-- Error Suppression (Optional, keeps console clean) -->
+    <script>
+      (function() {
+        const ignoreKeywords = ["quota", "gemini", "exceeded", "429", "resource exhausted", "too many requests", "failed to fetch", "network error", "400", "bad request"];
+        const shouldSuppress = (msg) => {
+          if (!msg) return false;
+          const str = (typeof msg === 'object' ? JSON.stringify(msg) : String(msg)).toLowerCase();
+          return ignoreKeywords.some(kw => str.includes(kw));
+        };
+        const originalError = console.error;
+        console.error = function(...args) {
+          if (args.some(a => shouldSuppress(a))) return;
+          originalError.apply(console, args);
+        };
+      })();
+    </script>
+
+    <!-- Import Map for React -->
+    <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+        "react/": "https://aistudiocdn.com/react@^19.2.0/",
+        "react": "https://aistudiocdn.com/react@^19.2.0",
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/"
+      }
+    }
+    </script>
+  </head>
+  <body>
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
