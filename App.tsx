@@ -370,7 +370,7 @@ export default function App() {
        <img 
          src="logo.png" 
          alt="LingoPop"
-         className="h-20 md:h-24 w-auto object-contain hover:scale-105 transition-transform duration-300"
+         className="h-32 md:h-40 w-auto object-contain hover:scale-105 transition-transform duration-300"
          onError={(e) => {
            // If image fails to load (not found), hide it and show emojis
            e.currentTarget.style.display = 'none';
