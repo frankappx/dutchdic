@@ -363,12 +363,12 @@ export default function App() {
   const renderLogo = () => (
     <div className="mb-8 flex justify-center items-center select-none">
        {/* 
-          LOGO IMAGE:
-          1. Rename your logo file to 'logo.png' and put it in the 'public' folder.
-          2. OR replace src="/logo.png" with a URL (e.g., https://mysite.com/logo.png).
+          Using string path 'logo.png'. 
+          NOTE: For Vercel/Production, ensure 'logo.png' is inside a 'public' folder.
+          If image fails (404), fallback logic handles it.
        */}
        <img 
-         src="/logo.png" 
+         src="logo.png" 
          alt="LingoPop"
          className="h-20 md:h-24 w-auto object-contain hover:scale-105 transition-transform duration-300"
          onError={(e) => {
