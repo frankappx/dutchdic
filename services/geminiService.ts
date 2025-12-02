@@ -1,10 +1,21 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 
 // Initialize Gemini Client
-// NOTE: Process.env.API_KEY is automatically injected.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Support both standard process.env (Node/Webpack) and import.meta.env (Vite)
+// Vercel/Vite users should set environment variable as VITE_GEMINI_API_KEY or REACT_APP_GEMINI_API_KEY
+const apiKey = process.env.API_KEY || 
+               (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+               (import.meta as any).env?.REACT_APP_GEMINI_API_KEY ||
+               process.env.REACT_APP_GEMINI_API_KEY;
+
+if (!apiKey) {
+  console.warn("Missing API Key! Please set VITE_GEMINI_API_KEY or REACT_APP_GEMINI_API_KEY in your environment.");
+}
+
+const ai = new GoogleGenAI({ apiKey: apiKey || "" });
 
 // --- Audio Helpers ---
 function decode(base64: string) {
@@ -471,3 +482,4 @@ export const playTTS = async (text: string): Promise<void> => {
     await playAudio(data);
   }
 };
+    
