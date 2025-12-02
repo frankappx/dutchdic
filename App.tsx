@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry, ViewState, SupportedLanguage, ImageStyle, ImageContext } from './types';
 import LanguageSelector from './components/LanguageSelector';
@@ -363,12 +362,11 @@ export default function App() {
   const renderLogo = () => (
     <div className="mb-1 flex justify-center items-center select-none">
        {/* 
-          Using string path 'logo.png'. 
-          NOTE: For Vercel/Production, ensure 'logo.png' is inside a 'public' folder.
+          Using absolute path '/logo.png' to correctly resolve from the public directory.
           If image fails (404), fallback logic handles it.
        */}
        <img 
-         src="logo.png" 
+         src="/logo.png" 
          alt="LingoPop"
          className="h-32 md:h-40 w-auto object-contain hover:scale-105 transition-transform duration-300"
          onError={(e) => {
