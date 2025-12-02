@@ -10,7 +10,8 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 function decode(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
-  const bytes = new Uint8Array(len);
+  // CRITICAL FIX: Ensure even byte length for Int16Array
+  const bytes = new Uint8Array(len + (len % 2));
   for (let i = 0; i < len; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
@@ -38,6 +39,8 @@ async function decodeAudioData(
 
 // Global Audio Context to prevent creation limit errors
 let sharedAudioContext: AudioContext | null = null;
+// Global Audio Cache to share TTS between Dictionary and Flashcards
+const globalAudioCache: Record<string, string> = {};
 
 const getAudioContext = () => {
   if (!sharedAudioContext) {
@@ -55,6 +58,27 @@ export const initAudio = async () => {
     }
   } catch (e) {
     // Silent fail
+  }
+};
+
+// Play a silent sound immediately to unlock audio on iOS/Safari/Chrome
+const playSilentOscillator = () => {
+  try {
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    // Completely silent
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    // Play for a very short time just to trigger the "running" state
+    osc.start();
+    osc.stop(ctx.currentTime + 0.01);
+  } catch (e) {
+    // Ignore
   }
 };
 
@@ -83,6 +107,52 @@ export const playFlipSound = async () => {
   } catch (e) {
     // Silent fail if audio context issue
   }
+};
+
+export const playSuccessSound = async () => {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') await ctx.resume();
+
+    const now = ctx.currentTime;
+    // High pitched pleasant chord
+    [523.25, 659.25, 783.99].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + i * 0.05);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.05, now + i * 0.05 + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.05 + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.05);
+      osc.stop(now + i * 0.05 + 0.4);
+    });
+  } catch (e) {}
+};
+
+export const playErrorSound = async () => {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') await ctx.resume();
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.linearRampToValueAtTime(100, now + 0.3);
+    
+    gain.gain.setValueAtTime(0.05, now);
+    gain.gain.linearRampToValueAtTime(0, now + 0.3);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.3);
+  } catch (e) {}
 };
 
 // --- API Methods ---
@@ -289,7 +359,8 @@ export const generateVisualization = async (
   const stylePrompt = stylePrompts[style] || stylePrompts['flat'];
   
   let contextPrompt = "";
-  if (imageContext === 'target') {
+  // Always enforce Target context for this app version
+  if (true) {
     // If Dutch, pick a random location to avoid Amsterdam/Windmill repetition
     if (targetLang.toLowerCase().includes('dutch') || targetLang.toLowerCase().includes('nederlands')) {
        const randomLocation = DUTCH_LOCATIONS[Math.floor(Math.random() * DUTCH_LOCATIONS.length)];
@@ -303,9 +374,21 @@ export const generateVisualization = async (
   }
 
   try {
+    // Stronger instruction to use the sentence as the literal prompt
+    const prompt = `Create a ${stylePrompt} illustration based on the following sentence: "${context}".
+    Key object/concept to highlight: "${term}".
+    Visualize the literal meaning of this sentence.
+    ${contextPrompt}
+    Ensure the image clearly depicts the action or object described in the sentence within the specified cultural setting.`;
+
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
-      contents: `Create a ${stylePrompt} illustration representing the concept: "${term}". Context: ${context}. ${contextPrompt}`,
+      contents: prompt,
+      config: {
+        imageConfig: {
+          aspectRatio: "16:9" // API supports 16:9 (1.77:1), we will crop to 2:1 in CSS
+        }
+      }
     });
 
     for (const part of response.candidates?.[0]?.content?.parts || []) {
@@ -327,7 +410,7 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }],
       config: {
-        responseModalities: [Modality.AUDIO],
+        responseModalities: ['AUDIO' as any], // Use string to prevent Enum import issues
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: { voiceName: 'Kore' }, 
@@ -367,8 +450,24 @@ export const playAudio = async (base64Audio: string): Promise<void> => {
   }
 };
 
-// Legacy wrapper for simple usage
+// Enhanced wrapper for robust usage across app
 export const playTTS = async (text: string): Promise<void> => {
+  // 1. Immediately resume/init AudioContext (Must happen in click handler)
+  await initAudio();
+  
+  // 2. Play silent oscillator to keep AudioContext active during potential fetch lag
+  playSilentOscillator();
+
+  // 3. Check Global Cache
+  if (globalAudioCache[text]) {
+    await playAudio(globalAudioCache[text]);
+    return;
+  }
+
+  // 4. Fetch if missing
   const data = await fetchTTS(text);
-  if (data) await playAudio(data);
+  if (data) {
+    globalAudioCache[text] = data; // Cache it
+    await playAudio(data);
+  }
 };

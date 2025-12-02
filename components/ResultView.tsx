@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { DictionaryEntry } from '../types';
-import { fetchTTS, playAudio, initAudio } from '../services/geminiService';
+import { playTTS, initAudio, playSuccessSound, playErrorSound } from '../services/geminiService';
 
 interface ResultViewProps {
   entry: DictionaryEntry;
@@ -18,6 +19,10 @@ interface ResultViewProps {
     forms?: string;
     synonyms?: string;
     antonyms?: string;
+    practice: string;
+    listening: string;
+    micErrorTitle: string;
+    micErrorMsg: string;
   };
 }
 
@@ -33,9 +38,16 @@ const cleanText = (text: string) => text.toLowerCase().replace(/[^\w\s]|_/g, "")
 
 const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSaved, sourceLang, targetLang, labels }) => {
   
-  // Audio state
-  const [audioCache, setAudioCache] = useState<Record<string, string>>({});
+  // Audio state (Cache is now global in service)
   const [loadingAudio, setLoadingAudio] = useState<string | null>(null);
+
+  // Pronunciation Practice State
+  const [isListening, setIsListening] = useState(false);
+  const [practiceFeedback, setPracticeFeedback] = useState<'idle' | 'listening' | 'correct' | 'incorrect'>('idle');
+  const [heardText, setHeardText] = useState('');
+  
+  // Error Modal State
+  const [showMicModal, setShowMicModal] = useState(false);
 
   // Share feedback state
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
@@ -43,25 +55,79 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
   const handleAudio = async (text: string, id: string) => {
     if (loadingAudio) return; // Prevent multiple clicks
 
-    // CRITICAL FIX: Initialize audio context immediately on user click
-    // This prevents browser autoplay policies from blocking audio after the async fetch
-    initAudio();
+    // UI Loading state
+    setLoadingAudio(id);
+    
+    // Call robust service (handles context, caching, fetching)
+    await playTTS(text);
+    
+    setLoadingAudio(null);
+  };
 
-    // 1. Check Cache
-    if (audioCache[text]) {
-      playAudio(audioCache[text]);
+  const handlePracticePronunciation = () => {
+    // Check browser support
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      // For browser incompatibility, we might still want a simple alert or just do nothing, 
+      // but let's stick to the modal for uniformity if we want.
+      // But usually this means the browser is too old or Firefox (needs config).
+      alert("Browser not supported for speech recognition. Please use Chrome/Edge/Safari.");
       return;
     }
 
-    // 2. Fetch
-    setLoadingAudio(id);
-    const base64 = await fetchTTS(text);
-    setLoadingAudio(null);
+    initAudio(); // Initialize audio context for sounds
 
-    // 3. Play & Save
-    if (base64) {
-      setAudioCache(prev => ({ ...prev, [text]: base64 }));
-      playAudio(base64);
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'nl-NL'; // Target Dutch
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setPracticeFeedback('listening');
+      setHeardText('');
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      // If we didn't get a result but ended, revert to idle unless we set feedback
+      if (practiceFeedback === 'listening') {
+         setPracticeFeedback('idle');
+      }
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setHeardText(transcript);
+      
+      const normalizedTranscript = cleanText(transcript);
+      const normalizedTarget = cleanText(entry.term);
+
+      // Simple fuzzy match check
+      if (normalizedTranscript.includes(normalizedTarget) || normalizedTarget.includes(normalizedTranscript)) {
+        setPracticeFeedback('correct');
+        playSuccessSound();
+      } else {
+        setPracticeFeedback('incorrect');
+        playErrorSound();
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      setIsListening(false);
+      setPracticeFeedback('idle');
+      console.warn("Speech Recognition Error:", event.error);
+      
+      // Specifically handle permission denied
+      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        setShowMicModal(true);
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error("Failed to start recognition", e);
     }
   };
 
@@ -90,7 +156,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
   };
 
   return (
-    <div className="pb-24 animate-fade-in">
+    <div className="pb-24 animate-fade-in relative">
       {/* Header / Term */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-4">
         <div className="flex justify-between items-start mb-4">
@@ -100,7 +166,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
             <div className="flex flex-wrap gap-2 items-center mb-3">
                <button 
                 onClick={() => handleAudio(entry.term, 'term')}
-                className="inline-flex items-center gap-2 px-3 py-1 bg-pop-yellow rounded-full text-xs font-bold shadow-sm active:scale-95 transition-transform"
+                className="inline-flex items-center gap-2 px-3 py-1 bg-pop-yellow rounded-full text-xs font-bold shadow-sm active:scale-95 transition-transform text-pop-dark"
                >
                  {loadingAudio === 'term' ? (
                    <i className="fa-solid fa-spinner fa-spin"></i>
@@ -108,6 +174,18 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                    <i className="fa-solid fa-volume-high"></i> 
                  )}
                  {labels.pronounce}
+               </button>
+
+               {/* Pronunciation Practice Button */}
+               <button 
+                  onClick={handlePracticePronunciation}
+                  disabled={isListening}
+                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold shadow-sm active:scale-95 transition-all
+                    ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}
+                  `}
+               >
+                  <i className={`fa-solid ${isListening ? 'fa-microphone-lines' : 'fa-microphone'}`}></i>
+                  {isListening ? labels.listening : labels.practice}
                </button>
 
                {/* Part of Speech & Gender Badges */}
@@ -122,6 +200,24 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                  </span>
                )}
             </div>
+
+            {/* Pronunciation Feedback Area */}
+            {practiceFeedback !== 'idle' && practiceFeedback !== 'listening' && (
+              <div className={`mt-2 mb-2 p-2 rounded-lg text-sm flex items-center gap-2 ${
+                practiceFeedback === 'correct' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+              }`}>
+                 {practiceFeedback === 'correct' ? (
+                    <i className="fa-solid fa-circle-check"></i>
+                 ) : (
+                    <i className="fa-solid fa-circle-xmark"></i>
+                 )}
+                 <div>
+                    <span className="font-bold">{practiceFeedback === 'correct' ? 'Great job!' : 'Try again!'}</span>
+                    {heardText && <span className="ml-1 opacity-80">- I heard: "{heardText}"</span>}
+                 </div>
+              </div>
+            )}
+
           </div>
           <div className="flex gap-3 relative">
             {showCopyFeedback && (
@@ -202,7 +298,8 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
         {/* Image - Full Width Bleed (-mx-6) */}
         {entry.imageUrl && (
           <div className="-mx-6 mb-6 overflow-hidden shadow-sm border-t border-b border-gray-100">
-            <img src={`data:image/png;base64,${entry.imageUrl}`} alt={entry.term} className="w-full h-48 md:h-96 object-cover transition-all" />
+            {/* CHANGED: Use aspect-[2/1] for 2:1 ratio as requested, with object-cover to crop the 16:9 source */}
+            <img src={`data:image/png;base64,${entry.imageUrl}`} alt={entry.term} className="w-full h-auto aspect-[2/1] object-cover transition-all" />
           </div>
         )}
 
@@ -257,6 +354,36 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
           <p className="text-pop-dark/80 text-sm leading-relaxed">{entry.usageNote}</p>
         </div>
       </div>
+
+      {/* Custom Microphone Permission Modal */}
+      {showMicModal && (
+        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full text-center relative">
+            <button 
+              onClick={() => setShowMicModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center"
+            >
+              <i className="fa-solid fa-xmark text-xl"></i>
+            </button>
+
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+              <i className="fa-solid fa-microphone-slash text-3xl"></i>
+            </div>
+            
+            <h3 className="text-xl font-black text-pop-dark mb-2">{labels.micErrorTitle}</h3>
+            <p className="text-gray-500 mb-6 text-sm leading-relaxed">
+              {labels.micErrorMsg}
+            </p>
+            
+            <button 
+              onClick={() => setShowMicModal(false)}
+              className="w-full bg-pop-dark text-white font-bold py-3 rounded-xl hover:scale-[1.02] transition-transform shadow-md"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

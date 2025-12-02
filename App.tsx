@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry, ViewState, SupportedLanguage, ImageStyle, ImageContext } from './types';
 import LanguageSelector from './components/LanguageSelector';
@@ -54,6 +55,7 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // App Settings
+  // FIXED: enableImages is always true, imageContext is always 'target' (Dutch culture)
   const [appSettings, setAppSettings] = useState<{
     enableImages: boolean, 
     enableSfx: boolean,
@@ -137,7 +139,16 @@ export default function App() {
         if (history) setSearchHistory(JSON.parse(history));
         
         const savedSettings = localStorage.getItem('lingopop_settings');
-        if (savedSettings) setAppSettings(prev => ({ ...prev, ...JSON.parse(savedSettings) }));
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          // Enforce defaults: Images always on, Context always target
+          setAppSettings(prev => ({ 
+            ...prev, 
+            ...parsed,
+            enableImages: true,
+            imageContext: 'target'
+          }));
+        }
 
         // 2. Saved Items (Big data, use IndexedDB)
         // Migration Check: If we have data in localStorage but not in IndexedDB, migrate it.
@@ -178,7 +189,13 @@ export default function App() {
   // Persist settings
   useEffect(() => {
     try {
-      localStorage.setItem('lingopop_settings', JSON.stringify(appSettings));
+      // Force defaults before saving
+      const settingsToSave = {
+        ...appSettings,
+        enableImages: true,
+        imageContext: 'target'
+      };
+      localStorage.setItem('lingopop_settings', JSON.stringify(settingsToSave));
     } catch (e) {
       console.warn("Failed to save settings", e);
     }
@@ -267,8 +284,16 @@ export default function App() {
     // Fetch image in background (only if image generation is enabled AND we didn't hit quota on definition)
     // Also skip if offline (though we checked earlier, network state might change)
     const isQuotaError = defData.definition.includes("(Service Busy)");
-    if (appSettings.enableImages && !isQuotaError && navigator.onLine) {
-      generateVisualization(termToSearch, defData.definition, appSettings.imageStyle, appSettings.imageContext, targetLang).then(async imgBase64 => {
+    // FORCE ENABLE IMAGES
+    if (!isQuotaError && navigator.onLine) {
+      // CHANGE: Use the first example sentence as context if available, otherwise fallback to definition
+      // This ensures the image matches the usage example
+      const visualContext = (defData.examples && defData.examples[0] && defData.examples[0].target)
+        ? defData.examples[0].target
+        : defData.definition;
+
+      // FORCE 'target' context
+      generateVisualization(termToSearch, visualContext, appSettings.imageStyle, 'target', targetLang).then(async imgBase64 => {
         if (imgBase64) {
           // 1. Update Current Entry UI
           setCurrentEntry(prev => (prev && prev.term === termToSearch) ? { ...prev, imageUrl: imgBase64 } : prev);
@@ -384,14 +409,16 @@ export default function App() {
           onChange={(e) => setSearchTerm(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           placeholder={searchUiData.searchPlaceholder}
-          className="w-full bg-white border-2 border-gray-100 rounded-3xl p-5 pl-6 pr-14 text-lg shadow-sm focus:outline-none focus:border-pop-purple transition-all"
+          // UPDATED: Responsive font size (text-xs/sm for mobile) and reduced padding for mobile to fit long placeholder text
+          className="w-full bg-white border-2 border-gray-100 rounded-3xl py-4 pl-5 pr-12 md:p-5 md:pl-6 md:pr-14 text-xs sm:text-sm md:text-lg shadow-sm focus:outline-none focus:border-pop-purple transition-all placeholder:text-gray-400"
         />
         <button 
           onClick={() => handleSearch()}
           disabled={isLoading}
-          className="absolute right-3 top-3 w-10 h-10 bg-pop-yellow rounded-full flex items-center justify-center text-pop-dark shadow-sm hover:scale-105 transition-transform"
+          // UPDATED: Adjusted button size/pos for mobile
+          className="absolute right-3 top-2 md:top-3 w-9 h-9 md:w-10 md:h-10 bg-pop-yellow rounded-full flex items-center justify-center text-pop-dark shadow-sm hover:scale-105 transition-transform"
         >
-          {isLoading ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-arrow-right"></i>}
+          {isLoading ? <i className="fa-solid fa-spinner fa-spin text-xs md:text-base"></i> : <i className="fa-solid fa-arrow-right text-xs md:text-base"></i>}
         </button>
       </div>
 
@@ -501,7 +528,8 @@ export default function App() {
 
     return (
       <div className="pb-24 px-4 max-w-md md:max-w-4xl mx-auto pt-6 flex flex-col h-screen max-h-[800px]">
-        <h2 className="text-3xl font-black text-pop-dark mb-6 text-center">{getUiLabel('studyMode')}</h2>
+        {/* Reduced bottom margin from mb-6 to mb-2 to save space */}
+        <h2 className="text-3xl font-black text-pop-dark mb-2 text-center">{getUiLabel('studyMode')}</h2>
         {!hasItems ? (
            <div className="text-center py-20 opacity-50">
              <p>{getUiLabel('emptyStudy')}</p>
@@ -523,7 +551,8 @@ export default function App() {
                   />
                 )}
                 
-                <div className="text-center mt-8 flex justify-center items-center gap-4">
+                {/* Reduced top margin from mt-8 to mt-4 to save space */}
+                <div className="text-center mt-4 flex justify-center items-center gap-4">
                   <span className="text-gray-400 text-xs font-bold tracking-widest">
                     {(flashcardIndex % savedItems.length) + 1} / {savedItems.length}
                   </span>
@@ -569,7 +598,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Enable Sound Effects Setting - MOVED UP */}
+        {/* Enable Sound Effects Setting */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-lg text-gray-800">{getUiLabel('enableSfx')}</h3>
@@ -582,69 +611,26 @@ export default function App() {
           </div>
         </div>
 
-        {/* Enable Images Setting - MOVED DOWN */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-lg text-gray-800">{getUiLabel('enableImages')}</h3>
-            <button 
-              onClick={() => setAppSettings(prev => ({...prev, enableImages: !prev.enableImages}))}
-              className={`w-14 h-8 rounded-full p-1 transition-colors ${appSettings.enableImages ? 'bg-pop-purple' : 'bg-gray-200'}`}
-            >
-              <div className={`w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${appSettings.enableImages ? 'translate-x-6' : ''}`} />
-            </button>
+        {/* Image Style Setting */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+          <h3 className="font-bold text-lg text-gray-800 mb-4">{getUiLabel('imageStyle')}</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {styles.map(style => (
+              <button
+                key={style}
+                onClick={() => setAppSettings(prev => ({...prev, imageStyle: style}))}
+                className={`
+                  p-3 rounded-xl border-2 text-sm font-bold text-left transition-all
+                  ${appSettings.imageStyle === style 
+                    ? 'border-pop-purple bg-purple-50 text-pop-purple' 
+                    : 'border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100'}
+                `}
+              >
+                {getUiLabel(`style${style.charAt(0).toUpperCase() + style.slice(1)}`)}
+              </button>
+            ))}
           </div>
-          <p className="text-sm text-gray-500 mb-4">
-            Generates a visual representation of each word you search for.
-          </p>
         </div>
-
-        {appSettings.enableImages && (
-          <>
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
-              <h3 className="font-bold text-lg text-gray-800 mb-4">{getUiLabel('imageContext')}</h3>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => setAppSettings(prev => ({...prev, imageContext: 'target'}))}
-                  className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all border-2 text-center
-                    ${appSettings.imageContext === 'target' 
-                      ? 'border-pop-purple bg-purple-50 text-pop-purple' 
-                      : 'border-gray-100 bg-gray-50 text-gray-500'}`}
-                >
-                  {getUiLabel('contextTarget')}
-                </button>
-                <button
-                  onClick={() => setAppSettings(prev => ({...prev, imageContext: 'free'}))}
-                  className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all border-2 text-center
-                    ${appSettings.imageContext === 'free' 
-                      ? 'border-pop-purple bg-purple-50 text-pop-purple' 
-                      : 'border-gray-100 bg-gray-50 text-gray-500'}`}
-                >
-                  {getUiLabel('contextFree')}
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-              <h3 className="font-bold text-lg text-gray-800 mb-4">{getUiLabel('imageStyle')}</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                {styles.map(style => (
-                  <button
-                    key={style}
-                    onClick={() => setAppSettings(prev => ({...prev, imageStyle: style}))}
-                    className={`
-                      p-3 rounded-xl border-2 text-sm font-bold text-left transition-all
-                      ${appSettings.imageStyle === style 
-                        ? 'border-pop-purple bg-purple-50 text-pop-purple' 
-                        : 'border-gray-100 bg-gray-50 text-gray-500 hover:bg-gray-100'}
-                    `}
-                  >
-                    {getUiLabel(`style${style.charAt(0).toUpperCase() + style.slice(1)}`)}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
 
         {/* Contact Section */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-6">
@@ -737,7 +723,11 @@ export default function App() {
                 plural: getUiLabel('plural'),
                 forms: getUiLabel('forms'),
                 synonyms: getUiLabel('synonyms'),
-                antonyms: getUiLabel('antonyms')
+                antonyms: getUiLabel('antonyms'),
+                practice: getUiLabel('practice'),
+                listening: getUiLabel('listening'),
+                micErrorTitle: getUiLabel('micErrorTitle'),
+                micErrorMsg: getUiLabel('micErrorMsg')
               }}
             />
           </div>
