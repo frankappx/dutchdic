@@ -359,16 +359,35 @@ export default function App() {
 
   // --- Render Helpers ---
 
-  // Common Logo Component: Using Dutch Cultural Emojis as requested
+  // Common Logo Component: Intelligent Image with Emoji Fallback
   const renderLogo = () => (
-    <div className="mb-6 flex justify-center items-end gap-1 select-none">
-       {/* Requested Emojis: Tulip, Grain, Cheese, Bike, Shoe, Crown */}
-       <span className="text-5xl">🌷</span>
-       <span className="text-5xl">🌾</span>
-       <span className="text-5xl">🧀</span>
-       <span className="text-5xl">🚲</span>
-       <span className="text-5xl">👞</span>
-       <span className="text-5xl">👑</span>
+    <div className="mb-8 flex justify-center items-center select-none">
+       {/* 
+          LOGO IMAGE:
+          1. Rename your logo file to 'logo.png' and put it in the 'public' folder.
+          2. OR replace src="/logo.png" with a URL (e.g., https://mysite.com/logo.png).
+       */}
+       <img 
+         src="/logo.png" 
+         alt="LingoPop"
+         className="h-20 md:h-24 w-auto object-contain hover:scale-105 transition-transform duration-300"
+         onError={(e) => {
+           // If image fails to load (not found), hide it and show emojis
+           e.currentTarget.style.display = 'none';
+           document.getElementById('fallback-logo-emojis')!.classList.remove('hidden');
+           document.getElementById('fallback-logo-emojis')!.classList.add('flex');
+         }}
+       />
+
+       {/* Fallback Emojis (Hidden by default, shows if logo.png is missing) */}
+       <div id="fallback-logo-emojis" className="hidden justify-center items-end gap-1">
+          <span className="text-5xl">🌷</span>
+          <span className="text-5xl">🌾</span>
+          <span className="text-5xl">🧀</span>
+          <span className="text-5xl">🚲</span>
+          <span className="text-5xl">👞</span>
+          <span className="text-5xl">👑</span>
+       </div>
     </div>
   );
 
