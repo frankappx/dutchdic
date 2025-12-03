@@ -39,8 +39,8 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
 
   return (
     <div 
-      // Keep card tall enough to fit 16:9 image + text comfortably
-      className="group w-full max-w-sm md:max-w-md h-96 md:h-[30rem] cursor-pointer perspective-1000 mx-auto transition-all duration-300"
+      // Adjusted height for desktop (md:h-[25rem]) to prevent overlap with bottom menu on laptops
+      className="group w-full max-w-sm md:max-w-md h-96 md:h-[25rem] cursor-pointer perspective-1000 mx-auto transition-all duration-300"
       onClick={handleFlip}
     >
       <div className={`relative w-full h-full transition-transform duration-500 transform-style-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
@@ -49,7 +49,7 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
         <div className="absolute w-full h-full bg-white rounded-3xl shadow-xl border-b-4 border-pop-purple p-4 flex flex-col items-center justify-center backface-hidden">
             
             {/* Image Area - FIXED 16:9 ASPECT RATIO */}
-            <div className="w-full aspect-video flex items-center justify-center mb-6 overflow-hidden relative rounded-2xl bg-gray-50 group-hover:shadow-inner transition-shadow shadow-sm">
+            <div className="w-full aspect-video flex items-center justify-center mb-4 overflow-hidden relative rounded-2xl bg-gray-50 group-hover:shadow-inner transition-shadow shadow-sm">
                {entry.imageUrl ? (
                   <img 
                     src={`data:image/png;base64,${entry.imageUrl}`} 
@@ -64,8 +64,8 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
             </div>
 
             {/* Content Section */}
-            <div className="flex flex-col items-center w-full relative pb-6">
-                <h2 className="text-3xl md:text-4xl font-black text-pop-dark text-center mb-4 leading-none break-words w-full px-2">
+            <div className="flex flex-col items-center w-full relative pb-4 flex-1 justify-center">
+                <h2 className="text-3xl md:text-4xl font-black text-pop-dark text-center mb-3 leading-none break-words w-full px-2 line-clamp-2">
                   {entry.term.toLowerCase()}
                 </h2>
                 
@@ -79,7 +79,7 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
             </div>
             
             {/* Instruction Text - Pushed to absolute bottom */}
-            <div className="absolute bottom-3 left-0 w-full text-center pointer-events-none">
+            <div className="absolute bottom-2 left-0 w-full text-center pointer-events-none">
                 <p className="text-gray-300 text-[10px] uppercase tracking-[0.2em] font-bold">
                   {labels.tapToFlip}
                 </p>
@@ -88,21 +88,21 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
 
         {/* Back Face */}
         <div className="absolute w-full h-full bg-pop-purple rounded-3xl shadow-xl p-6 flex flex-col justify-between backface-hidden rotate-y-180 text-white">
-          <div className="overflow-y-auto no-scrollbar">
-            <h3 className="text-base font-bold opacity-80 mb-1">{labels.definition}</h3>
+          <div className="overflow-y-auto no-scrollbar flex flex-col justify-center h-full">
+            <h3 className="text-sm font-bold opacity-80 mb-1">{labels.definition}</h3>
             <p className="text-xl font-medium mb-6 leading-snug">{entry.definition}</p>
             
             {firstExample && (
               <>
-                <h3 className="text-base font-bold opacity-80 mb-1">{labels.example}</h3>
+                <h3 className="text-sm font-bold opacity-80 mb-1">{labels.example}</h3>
                 <p className="text-lg italic font-light">"{firstExample.target}"</p>
                 {firstExample.source && (
-                   <p className="text-sm opacity-80 mt-2">{firstExample.source}</p>
+                   <p className="text-xs opacity-80 mt-2">{firstExample.source}</p>
                 )}
               </>
             )}
           </div>
-          <p className="text-center text-xs opacity-50 mt-2 uppercase tracking-widest">{labels.tapToFlipBack}</p>
+          <p className="text-center text-xs opacity-50 mt-2 uppercase tracking-widest absolute bottom-4 left-0 w-full">{labels.tapToFlipBack}</p>
         </div>
 
       </div>

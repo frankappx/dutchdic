@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry, ViewState, SupportedLanguage, ImageStyle, ImageContext } from './types';
 import LanguageSelector from './components/LanguageSelector';
@@ -571,8 +570,9 @@ export default function App() {
     const hasItems = savedItems.length > 0;
     const currentItem = hasItems ? savedItems[flashcardIndex % savedItems.length] : null;
 
+    // Adjusted vertical spacing for desktop: pt-4 and max-h constraint
     return (
-      <div className="pb-24 px-4 max-w-md md:max-w-4xl mx-auto pt-6 flex flex-col h-screen max-h-[800px]">
+      <div className="pb-24 px-4 max-w-md md:max-w-4xl mx-auto pt-4 flex flex-col h-screen max-h-[750px]">
         {/* Reduced bottom margin from mb-6 to mb-2 to save space */}
         <h2 className="text-3xl font-black text-pop-dark mb-2 text-center">{getUiLabel('studyMode')}</h2>
         {!hasItems ? (
@@ -581,7 +581,7 @@ export default function App() {
              <button onClick={() => setView('SEARCH')} className="mt-4 text-pop-purple font-bold">{getUiLabel('goToSearch')}</button>
            </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex flex-col items-center justify-center min-h-0">
              <div className="w-full">
                 {currentItem && (
                   <Flashcard 
@@ -596,8 +596,8 @@ export default function App() {
                   />
                 )}
                 
-                {/* Reduced top margin from mt-8 to mt-4 to save space */}
-                <div className="text-center mt-4 flex justify-center items-center gap-4">
+                {/* Reduced top margin to mt-3 to keep button close to card */}
+                <div className="text-center mt-3 flex justify-center items-center gap-4">
                   <span className="text-gray-400 text-xs font-bold tracking-widest">
                     {(flashcardIndex % savedItems.length) + 1} / {savedItems.length}
                   </span>
