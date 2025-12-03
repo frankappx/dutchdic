@@ -333,21 +333,23 @@ export const generateVisualization = async (
     ${contextPrompt}
     Ensure the image clearly depicts the action or object described.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
-      contents: prompt,
+    // CHANGED: Use generateImages with Imagen 3 model instead of generateContent with Flash
+    // This helps bypass the 429 quota limits often seen on the flash-image model for new keys
+    const response = await ai.models.generateImages({
+      model: 'imagen-3.0-generate-001',
+      prompt: prompt,
       config: {
-        imageConfig: {
-          aspectRatio: "16:9" 
-        }
+        numberOfImages: 1,
+        aspectRatio: '16:9',
+        outputMimeType: 'image/jpeg'
       }
     });
-
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return { data: part.inlineData.data, error: null };
-      }
+    
+    if (response.generatedImages && response.generatedImages.length > 0) {
+      // Imagen returns 'imageBytes' (base64)
+      return { data: response.generatedImages[0].image.imageBytes, error: null };
     }
+
     return { data: null, error: "No image data in response." };
   } catch (e: any) {
     console.warn("Image generation failed", e);
