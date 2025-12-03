@@ -227,43 +227,51 @@ export const generateDefinition = async (
          - antonyms: Array of strings.
     `;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
-      contents: prompt,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION_BASE,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            definition: { type: Type.STRING },
-            examples: {
-              type: Type.ARRAY,
-              items: {
+    // Helper to call API
+    const fetchDefinition = async (model: string) => {
+      return await ai.models.generateContent({
+        model: model,
+        contents: prompt,
+        config: {
+          systemInstruction: SYSTEM_INSTRUCTION_BASE,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              definition: { type: Type.STRING },
+              examples: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    target: { type: Type.STRING, description: `The sentence in ${targetLang}` },
+                    source: { type: Type.STRING, description: `The translation in ${sourceLang}` },
+                  }
+                }
+              },
+              usageNote: { type: Type.STRING },
+              grammar: {
                 type: Type.OBJECT,
                 properties: {
-                  target: { type: Type.STRING, description: `The sentence in ${targetLang}` },
-                  source: { type: Type.STRING, description: `The translation in ${sourceLang}` },
+                  partOfSpeech: { type: Type.STRING, description: "zn., ww., bn., etc." },
+                  article: { type: Type.STRING, description: "de, het, etc." },
+                  plural: { type: Type.STRING },
+                  verbForms: { type: Type.STRING, description: "Conjugation string" },
+                  adjectiveForms: { type: Type.STRING, description: "Degrees of comparison" },
+                  synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
                 }
-              }
-            },
-            usageNote: { type: Type.STRING },
-            grammar: {
-              type: Type.OBJECT,
-              properties: {
-                partOfSpeech: { type: Type.STRING, description: "zn., ww., bn., etc." },
-                article: { type: Type.STRING, description: "de, het, etc." },
-                plural: { type: Type.STRING },
-                verbForms: { type: Type.STRING, description: "Conjugation string" },
-                adjectiveForms: { type: Type.STRING, description: "Degrees of comparison" },
-                synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
-                antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
               }
             }
           }
         }
-      }
-    });
+      });
+    };
+
+    let response;
+    // TEST MODE: Force Gemini 3 Pro (No fallback)
+    console.log("Using model: gemini-3-pro");
+    response = await fetchDefinition("gemini-3-pro");
 
     let text = response.text || "";
     
@@ -352,19 +360,15 @@ export const generateVisualization = async (
     Ensure the image clearly depicts the action or object described.`;
 
   try {
-    // Use gemini-3-pro-image-preview for high quality images
+    // TEST MODE: Force Gemini 3 Pro Image (No fallback)
+    console.log("Using model: gemini-3-pro-image");
+    
+    // Note: If 'gemini-3-pro-image' is not the valid ID, this will throw 404
+    // Valid paid IDs are often simpler or require exact matches from the dashboard
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
-      contents: {
-        parts: [
-          { text: prompt }
-        ]
-      },
-      config: {
-        imageConfig: {
-          imageSize: "1K" // Can be 2K or 4K with Pro model, keeping 1K for speed/size balance
-        }
-      }
+      model: 'gemini-3-pro-image',
+      contents: { parts: [{ text: prompt }] },
+      config: { imageConfig: { imageSize: "1K" } }
     });
 
     for (const part of response.candidates?.[0]?.content?.parts || []) {
