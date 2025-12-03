@@ -12,23 +12,40 @@ export default function App() {
   // Helper to detect system language
   const detectSystemLanguage = () => {
     if (typeof navigator === 'undefined') return SupportedLanguage.ENGLISH;
-    const lang = navigator.language.split('-')[0];
-    const map: Record<string, string> = {
-      'en': SupportedLanguage.ENGLISH,
-      'zh': SupportedLanguage.CHINESE,
-      'es': SupportedLanguage.SPANISH,
-      'fr': SupportedLanguage.FRENCH,
-      'de': SupportedLanguage.GERMAN,
-      'ja': SupportedLanguage.JAPANESE,
-      'ko': SupportedLanguage.KOREAN,
-      'pt': SupportedLanguage.PORTUGUESE,
-      'ru': SupportedLanguage.RUSSIAN,
-      'ar': SupportedLanguage.ARABIC,
-      'nl': SupportedLanguage.DUTCH,
-      'uk': SupportedLanguage.UKRAINIAN,
-      'pl': SupportedLanguage.POLISH,
-    };
-    return map[lang] || SupportedLanguage.ENGLISH;
+    
+    try {
+      // Check navigator.languages (modern) or fallback to single property
+      const languages = navigator.languages || [navigator.language || (navigator as any).userLanguage || 'en'];
+      
+      const map: Record<string, string> = {
+        'en': SupportedLanguage.ENGLISH,
+        'zh': SupportedLanguage.CHINESE,
+        'es': SupportedLanguage.SPANISH,
+        'fr': SupportedLanguage.FRENCH,
+        'de': SupportedLanguage.GERMAN,
+        'ja': SupportedLanguage.JAPANESE,
+        'ko': SupportedLanguage.KOREAN,
+        'pt': SupportedLanguage.PORTUGUESE,
+        'ru': SupportedLanguage.RUSSIAN,
+        'ar': SupportedLanguage.ARABIC,
+        'nl': SupportedLanguage.DUTCH,
+        'uk': SupportedLanguage.UKRAINIAN,
+        'pl': SupportedLanguage.POLISH,
+      };
+
+      // Iterate through user's preferred languages to find the first supported one
+      for (const rawLang of languages) {
+        if (!rawLang) continue;
+        const langCode = rawLang.split('-')[0].toLowerCase();
+        if (map[langCode]) {
+           return map[langCode];
+        }
+      }
+      
+      return SupportedLanguage.ENGLISH;
+    } catch (e) {
+      return SupportedLanguage.ENGLISH;
+    }
   };
 
   // State
@@ -46,7 +63,18 @@ export default function App() {
   const [sourceLang, setSourceLang] = useState<string>(() => {
     // Try to load from local storage first, otherwise detect
     try {
-      return localStorage.getItem('lingopop_sourceLang') || detectSystemLanguage();
+      const saved = localStorage.getItem('lingopop_sourceLang');
+      if (saved) return saved;
+      
+      const detected = detectSystemLanguage();
+      // Smart Heuristic: If detected language is the same as the Target Language (Dutch),
+      // default to English. This prevents the app from defaulting to Monolingual mode
+      // for expats or users with Dutch locale settings who are still learners.
+      if (detected === SupportedLanguage.DUTCH) {
+        return SupportedLanguage.ENGLISH;
+      }
+      
+      return detected;
     } catch {
       return detectSystemLanguage();
     }
@@ -93,8 +121,8 @@ export default function App() {
 
   // Network Listener
   useEffect(() => {
-    // Force Git Change Detection: Deployment v2.3 (Clean Errors)
-    console.log("LingoPop: Loaded v2.3 (Clean Errors)");
+    // Force Git Change Detection: Deployment v2.5 (Lang Detection+)
+    console.log("LingoPop: Loaded v2.5 (Lang Detection+)");
 
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
