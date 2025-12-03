@@ -387,6 +387,7 @@ export const generateVisualization = async (
 // Fetch TTS Audio Data (Base64)
 export const fetchTTS = async (text: string): Promise<string | null> => {
   try {
+    console.log("Using TTS model: gemini-2.5-flash-preview-tts");
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }],
