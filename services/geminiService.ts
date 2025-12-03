@@ -2,9 +2,33 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 
-// Initialize Gemini Client strictly with process.env.API_KEY
-// SAFEGUARD: Check if process is defined to prevent browser crash (ReferenceError)
-const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : '';
+// Initialize Gemini Client
+// Robustly retrieve API Key from various environment locations
+const getApiKey = () => {
+  let key = '';
+
+  // 1. Try import.meta.env (Vite Standard)
+  try {
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      // @ts-ignore
+      key = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.API_KEY || '';
+    }
+  } catch (e) {}
+
+  // 2. Try process.env (Node/Webpack/Vercel Legacy)
+  if (!key) {
+    try {
+      if (typeof process !== 'undefined' && process.env) {
+        key = process.env.VITE_GEMINI_API_KEY || process.env.API_KEY || '';
+      }
+    } catch (e) {}
+  }
+  
+  return key;
+};
+
+const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
 
 // --- Audio Helpers ---
