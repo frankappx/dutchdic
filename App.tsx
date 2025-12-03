@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry, ViewState, SupportedLanguage, ImageStyle, ImageContext } from './types';
 import LanguageSelector from './components/LanguageSelector';
@@ -279,14 +280,14 @@ export default function App() {
     // We check for null and show the custom modal
     const defData = await generateDefinition(termToSearch, sourceLang, targetLang);
     
-    // CHECK FOR NON-DUTCH WORD
+    // CHECK FOR NON-DUTCH WORD (Updated with Localized Error)
     if (defData && defData.definition === "NOT_DUTCH") {
       setIsLoading(false);
       setSearchTerm('');
       setErrorModal({
         show: true,
-        title: "Unknown or Misspelled Word 🇳🇱",
-        message: `"${termToSearch}" appears to be non-Dutch or misspelled. Please check the spelling and try again!`
+        title: getUiLabel('unknownWordTitle'),
+        message: `"${termToSearch}" ${getUiLabel('unknownWordMsg')}`
       });
       return;
     }
