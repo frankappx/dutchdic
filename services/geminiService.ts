@@ -297,6 +297,27 @@ const DUTCH_LOCATIONS = [
   "Cycling on a polder dike"
 ];
 
+// Helper to sanitize error messages for UI
+const cleanErrorMessage = (error: any): string => {
+  const str = (error.message || error.toString() || "").toLowerCase();
+  
+  if (str.includes("429") || str.includes("quota") || str.includes("resource_exhausted")) {
+    return "Daily Image Quota Exceeded (429).";
+  }
+  if (str.includes("400") || str.includes("region") || str.includes("location")) {
+    return "Region Not Supported (400). Use US VPN.";
+  }
+  if (str.includes("403") || str.includes("permission") || str.includes("access")) {
+    return "Access Denied (403). Check API Key.";
+  }
+  if (str.includes("404") || str.includes("not found")) {
+    return "Image Model Not Found (404).";
+  }
+  
+  // Truncate long JSON errors
+  return "Image generation failed.";
+};
+
 // UPDATED: Now returns an object with data OR error
 export const generateVisualization = async (
   term: string, 
@@ -354,17 +375,8 @@ export const generateVisualization = async (
   } catch (e: any) {
     console.warn("Image generation failed (Imagen 3)", e);
     
-    // Construct meaningful error message
-    let msg = `Image gen failed: ${e.message || e.toString()}`;
-    const errString = e.toString();
-    
-    if (errString.includes("400")) {
-      msg = "Region Restricted (400). Use US VPN.";
-    } else if (errString.includes("403")) {
-      msg = "Access Denied (403). Check API Permissions.";
-    } else if (errString.includes("429")) {
-      msg = "Quota Limit (429).";
-    }
+    let msg = cleanErrorMessage(e);
+    const errString = e.toString().toLowerCase();
 
     // Fallback: If Imagen 3 fails (e.g. 404 Not Found or 400), try Flash Image as backup
     // This is useful if the API Key doesn't have access to Imagen 3 yet
@@ -383,7 +395,8 @@ export const generateVisualization = async (
             }
         } catch (fallbackError: any) {
              console.warn("Fallback failed", fallbackError);
-             msg = `All models failed. ${fallbackError.message || fallbackError.toString()}`;
+             // Ensure fallback error is also cleaned
+             msg = cleanErrorMessage(fallbackError);
         }
     }
 

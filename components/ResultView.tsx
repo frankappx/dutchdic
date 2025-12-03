@@ -304,11 +304,9 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
             <img src={`data:image/png;base64,${entry.imageUrl}`} alt={entry.term} className="w-full h-auto aspect-[2/1] object-cover transition-all" />
           </div>
         ) : entry.imageError ? (
-          <div className="mb-6 p-6 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center">
-             <i className="fa-solid fa-image-slash text-4xl text-gray-300 mb-2"></i>
-             <p className="text-sm font-bold text-gray-500">Image Generation Failed</p>
-             <p className="text-xs text-red-500 font-mono mt-1 bg-red-50 px-2 py-1 rounded">{entry.imageError}</p>
-             <p className="text-xs text-gray-400 mt-2">Try using a VPN (US) if you are in EU/UK.</p>
+          <div className="mb-6 mx-auto max-w-sm p-4 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-center gap-3 text-gray-400">
+             <i className="fa-regular fa-image text-xl"></i>
+             <span className="text-xs font-medium">{entry.imageError}</span>
           </div>
         ) : null}
 
