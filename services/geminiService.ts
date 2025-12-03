@@ -270,9 +270,10 @@ export const generateDefinition = async (
     };
 
     let response;
-    // TEST MODE: Force Gemini 3 Pro Preview (No fallback)
-    console.log("Using model: gemini-3-pro-preview");
-    response = await fetchDefinition("gemini-3-pro-preview");
+    // HYBRID STRATEGY: Use Flash for Text (Low Latency)
+    // Pro is too slow for simple dictionary definitions.
+    console.log("Using text model: gemini-2.5-flash");
+    response = await fetchDefinition("gemini-2.5-flash");
 
     let text = response.text || "";
     
@@ -361,8 +362,8 @@ export const generateVisualization = async (
     Ensure the image clearly depicts the action or object described.`;
 
   try {
-    // TEST MODE: Force Gemini 3 Pro Image Preview (No fallback)
-    console.log("Using model: gemini-3-pro-image-preview");
+    // HYBRID STRATEGY: Use Pro for Images (High Quality)
+    console.log("Using image model: gemini-3-pro-image-preview");
     
     // Note: If 'gemini-3-pro-image-preview' is not the valid ID, this will throw 404
     const response = await ai.models.generateContent({
