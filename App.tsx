@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry, ViewState, SupportedLanguage, ImageStyle, ImageContext } from './types';
 import LanguageSelector from './components/LanguageSelector';
@@ -808,7 +810,10 @@ export default function App() {
                 practice: getUiLabel('practice'),
                 listening: getUiLabel('listening'),
                 micErrorTitle: getUiLabel('micErrorTitle'),
-                micErrorMsg: getUiLabel('micErrorMsg')
+                micErrorMsg: getUiLabel('micErrorMsg'),
+                feedbackCorrect: getUiLabel('feedbackCorrect'),
+                feedbackIncorrect: getUiLabel('feedbackIncorrect'),
+                heard: getUiLabel('heard')
               }}
             />
           </div>

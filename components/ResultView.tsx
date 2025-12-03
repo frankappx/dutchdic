@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry } from '../types';
 import { playTTS, initAudio, playSuccessSound, playErrorSound } from '../services/geminiService';
@@ -23,6 +24,9 @@ interface ResultViewProps {
     listening: string;
     micErrorTitle: string;
     micErrorMsg: string;
+    feedbackCorrect: string;
+    feedbackIncorrect: string;
+    heard: string;
   };
 }
 
@@ -212,8 +216,8 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                     <i className="fa-solid fa-circle-xmark"></i>
                  )}
                  <div>
-                    <span className="font-bold">{practiceFeedback === 'correct' ? 'Great job!' : 'Try again!'}</span>
-                    {heardText && <span className="ml-1 opacity-80">- I heard: "{heardText}"</span>}
+                    <span className="font-bold">{practiceFeedback === 'correct' ? labels.feedbackCorrect : labels.feedbackIncorrect}</span>
+                    {heardText && <span className="ml-1 opacity-80">- {labels.heard} "{heardText}"</span>}
                  </div>
               </div>
             )}
