@@ -93,8 +93,8 @@ export default function App() {
 
   // Network Listener
   useEffect(() => {
-    // Force Git Change Detection: Deployment v2.1 (Imagen Update)
-    console.log("LingoPop: Loaded v2.1 (Imagen Support)");
+    // Force Git Change Detection: Deployment v2.2 (Preview Refresh)
+    console.log("LingoPop: Loaded v2.2 (Refresh)");
 
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);

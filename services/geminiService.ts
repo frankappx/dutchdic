@@ -326,13 +326,13 @@ export const generateVisualization = async (
     }
   }
 
-  try {
-    const prompt = `Create a ${stylePrompt} illustration based on the following sentence: "${context}".
+  const prompt = `Create a ${stylePrompt} illustration based on the following sentence: "${context}".
     Key object/concept to highlight: "${term}".
     Visualize the literal meaning of this sentence.
     ${contextPrompt}
     Ensure the image clearly depicts the action or object described.`;
 
+  try {
     // CHANGED: Use generateImages with Imagen 3 model instead of generateContent with Flash
     // This helps bypass the 429 quota limits often seen on the flash-image model for new keys
     const response = await ai.models.generateImages({
@@ -352,20 +352,39 @@ export const generateVisualization = async (
 
     return { data: null, error: "No image data in response." };
   } catch (e: any) {
-    console.warn("Image generation failed", e);
+    console.warn("Image generation failed (Imagen 3)", e);
     
     // Construct meaningful error message
-    let msg = "Image generation failed.";
+    let msg = `Image gen failed: ${e.message || e.toString()}`;
     const errString = e.toString();
     
     if (errString.includes("400")) {
-      msg = "Region Restricted (400). Google AI Images are blocked in EU/UK. Use a US VPN.";
+      msg = "Region Restricted (400). Use US VPN.";
     } else if (errString.includes("403")) {
-      msg = "Access Denied (403). API Key missing permissions.";
+      msg = "Access Denied (403). Check API Permissions.";
     } else if (errString.includes("429")) {
-      msg = "Quota Limit (429). Too many requests.";
-    } else if (errString.includes("500")) {
-      msg = "Google Server Error (500).";
+      msg = "Quota Limit (429).";
+    }
+
+    // Fallback: If Imagen 3 fails (e.g. 404 Not Found or 400), try Flash Image as backup
+    // This is useful if the API Key doesn't have access to Imagen 3 yet
+    if (errString.includes("404") || errString.includes("not found")) {
+        console.warn("Imagen 3 not found, falling back to Gemini Flash Image...");
+        try {
+            const fallbackResponse = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: { parts: [{ text: prompt }] },
+            });
+            // Find image part
+            for (const part of fallbackResponse.candidates?.[0]?.content?.parts || []) {
+                if (part.inlineData) {
+                    return { data: part.inlineData.data, error: null };
+                }
+            }
+        } catch (fallbackError: any) {
+             console.warn("Fallback failed", fallbackError);
+             msg = `All models failed. ${fallbackError.message || fallbackError.toString()}`;
+        }
     }
 
     return { data: null, error: msg }; 
