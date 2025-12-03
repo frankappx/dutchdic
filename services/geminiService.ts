@@ -228,7 +228,7 @@ export const generateDefinition = async (
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_BASE,
@@ -352,13 +352,18 @@ export const generateVisualization = async (
     Ensure the image clearly depicts the action or object described.`;
 
   try {
-    // Use gemini-2.5-flash-image for general availability and reliability
+    // Use gemini-3-pro-image-preview for high quality images
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
+      model: 'gemini-3-pro-image-preview',
       contents: {
         parts: [
           { text: prompt }
         ]
+      },
+      config: {
+        imageConfig: {
+          imageSize: "1K" // Can be 2K or 4K with Pro model, keeping 1K for speed/size balance
+        }
       }
     });
 
