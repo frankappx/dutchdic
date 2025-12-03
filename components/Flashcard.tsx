@@ -33,6 +33,10 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
     setIsLoadingAudio(false);
   };
 
+  // Safety checks for data
+  const examples = entry.examples || [];
+  const firstExample = examples[0];
+
   return (
     <div 
       // Keep card tall enough to fit 16:9 image + text comfortably
@@ -88,9 +92,15 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
             <h3 className="text-base font-bold opacity-80 mb-1">{labels.definition}</h3>
             <p className="text-xl font-medium mb-6 leading-snug">{entry.definition}</p>
             
-            <h3 className="text-base font-bold opacity-80 mb-1">{labels.example}</h3>
-            <p className="text-lg italic font-light">"{entry.examples[0]?.target}"</p>
-            <p className="text-sm opacity-80 mt-2">{entry.examples[0]?.source}</p>
+            {firstExample && (
+              <>
+                <h3 className="text-base font-bold opacity-80 mb-1">{labels.example}</h3>
+                <p className="text-lg italic font-light">"{firstExample.target}"</p>
+                {firstExample.source && (
+                   <p className="text-sm opacity-80 mt-2">{firstExample.source}</p>
+                )}
+              </>
+            )}
           </div>
           <p className="text-center text-xs opacity-50 mt-2 uppercase tracking-widest">{labels.tapToFlipBack}</p>
         </div>

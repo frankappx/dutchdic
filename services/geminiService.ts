@@ -3,7 +3,9 @@ import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 
 // Initialize Gemini Client strictly with process.env.API_KEY
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// SAFEGUARD: Check if process is defined to prevent browser crash (ReferenceError)
+const apiKey = typeof process !== 'undefined' && process.env ? process.env.API_KEY : '';
+const ai = new GoogleGenAI({ apiKey });
 
 // --- Audio Helpers ---
 function decode(base64: string) {
@@ -239,8 +241,12 @@ export const generateDefinition = async (
       }
     });
 
-    const text = response.text;
-    if (!text) return null;
+    let text = response.text || "";
+    
+    // ROBUSTNESS FIX: Remove Markdown code blocks if present
+    // Gemini sometimes returns ```json { ... } ``` even when responseMimeType is set
+    text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
+
     return JSON.parse(text);
   } catch (error) {
     console.error("Gemini API Error (generateDefinition):", error);
