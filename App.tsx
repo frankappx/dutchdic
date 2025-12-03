@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry, ViewState, SupportedLanguage, ImageStyle, ImageContext } from './types';
 import LanguageSelector from './components/LanguageSelector';
@@ -450,8 +451,9 @@ export default function App() {
           onChange={(e) => setSearchTerm(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           placeholder={searchUiData.searchPlaceholder}
-          // UPDATED: Font size increased to text-base (16px) to prevent iOS zoom
-          className="w-full bg-white border-2 border-gray-100 rounded-3xl py-4 pl-5 pr-12 md:p-5 md:pl-6 md:pr-14 text-base md:text-lg shadow-sm focus:outline-none focus:border-pop-purple transition-all placeholder:text-gray-400 placeholder:text-ellipsis"
+          // UPDATED: Input text remains 16px (text-base) to stop iOS zoom. 
+          // Placeholder text is reduced on mobile (text-[11px]) to fit long hints.
+          className="w-full bg-white border-2 border-gray-100 rounded-3xl py-4 pl-5 pr-12 md:p-5 md:pl-6 md:pr-14 text-base md:text-lg shadow-sm focus:outline-none focus:border-pop-purple transition-all placeholder:text-gray-400 placeholder:text-[11px] md:placeholder:text-base placeholder:text-ellipsis"
         />
         <button 
           onClick={() => handleSearch()}
