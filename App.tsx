@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry, ViewState, SupportedLanguage, ImageStyle, ImageContext } from './types';
 import LanguageSelector from './components/LanguageSelector';
@@ -430,6 +431,8 @@ export default function App() {
       
       <div className="w-full relative">
         <input 
+          id="search-input"
+          name="search"
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -443,6 +446,7 @@ export default function App() {
           disabled={isLoading}
           // UPDATED: Adjusted button size/pos for mobile
           className="absolute right-3 top-2 md:top-3 w-9 h-9 md:w-10 md:h-10 bg-pop-yellow rounded-full flex items-center justify-center text-pop-dark shadow-sm hover:scale-105 transition-transform"
+          aria-label="Search"
         >
           {isLoading ? <i className="fa-solid fa-spinner fa-spin text-xs md:text-base"></i> : <i className="fa-solid fa-arrow-right text-xs md:text-base"></i>}
         </button>
@@ -526,6 +530,7 @@ export default function App() {
                   onClick={() => setNotebookPage(p => Math.max(1, p - 1))}
                   disabled={notebookPage === 1}
                   className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 text-pop-dark shadow-sm transition-all"
+                  aria-label="Previous page"
                 >
                   <i className="fa-solid fa-chevron-left"></i>
                 </button>
@@ -536,6 +541,7 @@ export default function App() {
                   onClick={() => setNotebookPage(p => Math.min(totalPages, p + 1))}
                   disabled={notebookPage === totalPages}
                   className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 text-pop-dark shadow-sm transition-all"
+                  aria-label="Next page"
                 >
                   <i className="fa-solid fa-chevron-right"></i>
                 </button>
@@ -608,6 +614,8 @@ export default function App() {
           <h3 className="font-bold text-lg text-gray-800 mb-4">{getUiLabel('motherTongue')}</h3>
           <div className="relative">
             <select
+              id="language-select"
+              name="language"
               value={sourceLang}
               onChange={(e) => setSourceLang(e.target.value)}
               className="w-full bg-gray-50 border border-gray-200 text-gray-700 py-3 px-4 pr-8 rounded-xl leading-tight focus:outline-none focus:bg-white focus:border-pop-purple appearance-none font-medium cursor-pointer"
@@ -631,6 +639,7 @@ export default function App() {
             <button 
               onClick={() => setAppSettings(prev => ({...prev, enableSfx: !prev.enableSfx}))}
               className={`w-14 h-8 rounded-full p-1 transition-colors ${appSettings.enableSfx ? 'bg-pop-purple' : 'bg-gray-200'}`}
+              aria-label={appSettings.enableSfx ? "Disable sound effects" : "Enable sound effects"}
             >
               <div className={`w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${appSettings.enableSfx ? 'translate-x-6' : ''}`} />
             </button>
@@ -723,7 +732,11 @@ export default function App() {
       {/* Top Bar for Results to go back */}
       {view === 'RESULT' && (
         <div className={`px-4 py-4 sticky ${!isOnline ? 'top-[36px]' : 'top-0'} bg-gray-50/90 backdrop-blur-sm z-10 max-w-md md:max-w-4xl mx-auto flex items-center transition-all duration-300`}>
-          <button onClick={() => setView('SEARCH')} className="w-10 h-10 bg-white rounded-full shadow-sm flex items-center justify-center text-gray-600">
+          <button 
+            onClick={() => setView('SEARCH')} 
+            className="w-10 h-10 bg-white rounded-full shadow-sm flex items-center justify-center text-gray-600"
+            aria-label="Back to search"
+          >
             <i className="fa-solid fa-arrow-left"></i>
           </button>
           <span className="ml-4 font-bold text-gray-400 text-sm">{getUiLabel('dictionary')}</span>
@@ -768,24 +781,28 @@ export default function App() {
         <button 
           onClick={() => setView('SEARCH')}
           className={`p-3 rounded-full transition-colors ${view === 'SEARCH' || view === 'RESULT' ? 'bg-pop-yellow text-pop-dark' : 'text-gray-400 hover:bg-gray-50'}`}
+          aria-label="Search"
         >
           <i className="fa-solid fa-magnifying-glass text-xl"></i>
         </button>
         <button 
           onClick={() => setView('NOTEBOOK')}
           className={`p-3 rounded-full transition-colors ${view === 'NOTEBOOK' ? 'bg-pop-purple text-white' : 'text-gray-400 hover:bg-gray-50'}`}
+          aria-label="Notebook"
         >
           <i className="fa-solid fa-book text-xl"></i>
         </button>
         <button 
           onClick={() => setView('FLASHCARDS')}
           className={`p-3 rounded-full transition-colors ${view === 'FLASHCARDS' ? 'bg-pop-teal text-white' : 'text-gray-400 hover:bg-gray-50'}`}
+          aria-label="Flashcards"
         >
           <i className="fa-solid fa-layer-group text-xl"></i>
         </button>
         <button 
           onClick={() => setView('SETTINGS')}
           className={`p-3 rounded-full transition-colors ${view === 'SETTINGS' ? 'bg-pop-pink text-white' : 'text-gray-400 hover:bg-gray-50'}`}
+          aria-label="Settings"
         >
           <i className="fa-solid fa-gear text-xl"></i>
         </button>

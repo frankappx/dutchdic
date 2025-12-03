@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry } from '../types';
 import { playTTS, initAudio, playSuccessSound, playErrorSound } from '../services/geminiService';
@@ -229,6 +228,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
               onClick={handleShare}
               className="w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all shadow-sm bg-gray-100 text-gray-500 hover:bg-gray-200"
               title="Share"
+              aria-label="Share"
             >
               <i className="fa-solid fa-share-nodes"></i>
             </button>
@@ -236,6 +236,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
               onClick={() => onSave(entry)}
               className={`w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all shadow-sm ${isSaved ? 'bg-pop-pink text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
               title="Save to Notebook"
+              aria-label={isSaved ? "Remove from notebook" : "Save to notebook"}
             >
               <i className={`fa-solid ${isSaved ? 'fa-heart' : 'fa-bookmark'}`}></i>
             </button>
@@ -318,6 +319,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                 <button 
                   onClick={() => handleAudio(ex.target, `ex-${idx}`)} 
                   className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-pop-purple shadow-sm hover:scale-110 transition-transform shrink-0 ml-2"
+                  aria-label="Listen to example"
                 >
                   {loadingAudio === `ex-${idx}` ? (
                     <i className="fa-solid fa-spinner fa-spin text-xs"></i>
@@ -343,6 +345,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
             <button 
               onClick={() => handleAudio(entry.usageNote, 'tip')}
               className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-pop-purple shadow-sm hover:scale-110 transition-transform"
+              aria-label="Listen to tip"
             >
                {loadingAudio === 'tip' ? (
                   <i className="fa-solid fa-spinner fa-spin text-xs"></i>
@@ -362,6 +365,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
             <button 
               onClick={() => setShowMicModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center"
+              aria-label="Close"
             >
               <i className="fa-solid fa-xmark text-xl"></i>
             </button>

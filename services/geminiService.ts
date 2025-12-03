@@ -1,19 +1,38 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 
-// Initialize Gemini Client
-// Support both standard process.env (Node/Webpack) and import.meta.env (Vite)
+// Helper to safely get environment variables without crashing in browser
+const getEnv = (key: string) => {
+  // 1. Try Vite standard (import.meta.env)
+  try {
+    // @ts-ignore
+    if (import.meta && import.meta.env && import.meta.env[key]) {
+      // @ts-ignore
+      return import.meta.env[key];
+    }
+  } catch (e) {}
+
+  // 2. Try Node/Webpack standard (process.env) - Safe check
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+      return process.env[key];
+    }
+  } catch (e) {}
+
+  return "";
+};
+
+// Initialize Gemini Client with robust key lookup
 // Prioritize VITE_GEMINI_API_KEY for Vercel deployments
-const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY ||
-               process.env.API_KEY || 
-               process.env.REACT_APP_API_KEY ||
-               (import.meta as any).env?.REACT_APP_API_KEY ||
-               (import.meta as any).env?.REACT_APP_GEMINI_API_KEY ||
-               process.env.REACT_APP_GEMINI_API_KEY;
+const apiKey = getEnv('VITE_GEMINI_API_KEY') || 
+               getEnv('REACT_APP_API_KEY') || 
+               getEnv('API_KEY') || 
+               getEnv('REACT_APP_GEMINI_API_KEY');
 
 if (!apiKey) {
-  console.error("CRITICAL: Gemini API Key is missing. Check Vercel Environment Variables. Looking for VITE_GEMINI_API_KEY.");
+  console.error("CRITICAL: Gemini API Key is missing. Check Vercel Environment Variables (VITE_GEMINI_API_KEY).");
 }
 
 const ai = new GoogleGenAI({ apiKey: apiKey || "" });

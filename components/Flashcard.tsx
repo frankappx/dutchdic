@@ -61,6 +61,7 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
             <button 
               onClick={handleAudio}
               className="mt-1 w-10 h-10 rounded-full bg-pop-yellow text-pop-dark flex items-center justify-center hover:scale-105 transition-transform shadow-sm"
+              aria-label="Play pronunciation"
             >
               {isLoadingAudio ? <i className="fa-solid fa-spinner fa-spin"></i> : <i className="fa-solid fa-volume-high"></i>}
             </button>
