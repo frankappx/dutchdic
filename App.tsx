@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry, ViewState, SupportedLanguage, ImageStyle, ImageContext } from './types';
 import LanguageSelector from './components/LanguageSelector';
@@ -410,7 +409,7 @@ export default function App() {
   // --- Render Helpers ---
 
   // Common Logo Component: Intelligent Image with Emoji Fallback
-  const renderLogo = () => (
+  const renderLogo = (isSmall = false) => (
     <div className="mb-1 flex justify-center items-center select-none">
        {/* 
           Using absolute path '/logo.png' to correctly resolve from the public directory.
@@ -419,7 +418,7 @@ export default function App() {
        <img 
          src="/logo.png" 
          alt="LingoPop"
-         className="h-32 md:h-40 w-auto object-contain hover:scale-105 transition-transform duration-300"
+         className={`${isSmall ? 'h-20' : 'h-32 md:h-40'} w-auto object-contain hover:scale-105 transition-transform duration-300`}
          onError={(e) => {
            // If image fails to load (not found), hide it and show emojis
            e.currentTarget.style.display = 'none';
@@ -441,12 +440,12 @@ export default function App() {
   );
 
   const renderOnboarding = () => (
-    <div className="flex flex-col min-h-screen p-6 justify-center max-w-md md:max-w-lg mx-auto">
-      <div className="text-center mb-10">
-        {renderLogo()}
+    <div className="flex flex-col min-h-screen p-4 justify-center max-w-md mx-auto">
+      <div className="text-center mb-4">
+        {renderLogo(true)}
         {/* Dynamic Title based on selected language */}
-        <h1 className="text-4xl font-black text-pop-dark mb-2">{getUiLabel('greeting')}</h1>
-        <p className="text-gray-500">
+        <h1 className="text-xl font-black text-pop-dark mb-1 leading-tight">{getUiLabel('greeting')}</h1>
+        <p className="text-xs text-gray-400">
           Modern Dutch Dictionary
         </p>
       </div>
@@ -456,7 +455,7 @@ export default function App() {
       <button 
         disabled={!sourceLang}
         onClick={() => setView('SEARCH')}
-        className="mt-8 w-full bg-pop-dark text-white font-bold py-4 rounded-2xl shadow-lg disabled:opacity-50 hover:scale-[1.02] transition-transform"
+        className="mt-3 w-full bg-pop-dark text-white font-bold py-3 rounded-xl shadow-lg disabled:opacity-50 hover:scale-[1.02] transition-transform text-lg"
       >
         {getUiLabel('startLearning')}
       </button>
@@ -665,7 +664,7 @@ export default function App() {
             >
               {LANGUAGES.map(lang => (
                  <option key={lang.code} value={lang.name}>
-                   {lang.flag} {lang.name}
+                   {lang.name} {lang.flag}
                  </option>
               ))}
             </select>

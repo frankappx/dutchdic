@@ -2,19 +2,19 @@
 import { SupportedLanguage } from './types';
 
 export const LANGUAGES = [
-  { code: 'en', name: SupportedLanguage.ENGLISH, flag: '🇺🇸' },
-  { code: 'es', name: SupportedLanguage.SPANISH, flag: '🇪🇸' },
-  { code: 'zh', name: SupportedLanguage.CHINESE, flag: '🇨🇳' },
-  { code: 'fr', name: SupportedLanguage.FRENCH, flag: '🇫🇷' },
-  { code: 'de', name: SupportedLanguage.GERMAN, flag: '🇩🇪' },
-  { code: 'ja', name: SupportedLanguage.JAPANESE, flag: '🇯🇵' },
-  { code: 'ko', name: SupportedLanguage.KOREAN, flag: '🇰🇷' },
-  { code: 'pt', name: SupportedLanguage.PORTUGUESE, flag: '🇧🇷' },
-  { code: 'ru', name: SupportedLanguage.RUSSIAN, flag: '🇷🇺' },
-  { code: 'ar', name: SupportedLanguage.ARABIC, flag: '🇸🇦' },
-  { code: 'uk', name: SupportedLanguage.UKRAINIAN, flag: '🇺🇦' },
-  { code: 'pl', name: SupportedLanguage.POLISH, flag: '🇵🇱' },
-  { code: 'nl', name: SupportedLanguage.DUTCH, flag: '🇳🇱' },
+  { code: 'en', name: SupportedLanguage.ENGLISH, flag: '🇺🇸', countryCode: 'us' },
+  { code: 'es', name: SupportedLanguage.SPANISH, flag: '🇪🇸', countryCode: 'es' },
+  { code: 'zh', name: SupportedLanguage.CHINESE, flag: '🇨🇳', countryCode: 'cn' },
+  { code: 'fr', name: SupportedLanguage.FRENCH, flag: '🇫🇷', countryCode: 'fr' },
+  { code: 'de', name: SupportedLanguage.GERMAN, flag: '🇩🇪', countryCode: 'de' },
+  { code: 'ja', name: SupportedLanguage.JAPANESE, flag: '🇯🇵', countryCode: 'jp' },
+  { code: 'ko', name: SupportedLanguage.KOREAN, flag: '🇰🇷', countryCode: 'kr' },
+  { code: 'pt', name: SupportedLanguage.PORTUGUESE, flag: '🇧🇷', countryCode: 'br' },
+  { code: 'ru', name: SupportedLanguage.RUSSIAN, flag: '🇷🇺', countryCode: 'ru' },
+  { code: 'ar', name: SupportedLanguage.ARABIC, flag: '🇸🇦', countryCode: 'sa' },
+  { code: 'uk', name: SupportedLanguage.UKRAINIAN, flag: '🇺🇦', countryCode: 'ua' },
+  { code: 'pl', name: SupportedLanguage.POLISH, flag: '🇵🇱', countryCode: 'pl' },
+  { code: 'nl', name: SupportedLanguage.DUTCH, flag: '🇳🇱', countryCode: 'nl' },
 ];
 
 export const SYSTEM_INSTRUCTION_BASE = `
@@ -70,7 +70,7 @@ export const UI_TRANSLATIONS: Record<string, any> = {
     practice: "연습", listening: "듣고 있습니다...", micErrorTitle: "마이크 접근", micErrorMsg: "발음 연습을 위해 브라우저 설정에서 마이크 접근을 허용해주세요."
   },
   [SupportedLanguage.PORTUGUESE]: {
-    notebook: "Caderno", items: "itens", emptyNotebook: "Nada salvo ainda!", clear: "Limpar", studyMode: "Modo Estudo", emptyStudy: "Salve palavras para estudar!", goToSearch: "Ir para Busca", nextCard: "Próximo", tapToFlip: "Toque para virar", tapToFlipBack: "Voltar", definition: "Definição", example: "Exemplo", dictionary: "Dicionário", pronounce: "Pronunciar", examples: "Exemplos", quickTip: "Dica", settings: "Configurações", motherTongue: "Língua Materna", enableImages: "Imagens IA", enableSfx: "Efeitos Sonoros", imageStyle: "Estilo", imageContext: "Contexto", contextTarget: "Cultura Alvo", contextFree: "Livre", styleFlat: "Plano", styleCartoon: "Cartoon", styleGhibli: "Ghibli", styleWatercolor: "Aquarela", stylePixel: "Pixel", styleRealistic: "Realista", historyLabel: "Histórico", greeting: "Dicionário Holandês Moderno", suggestionLabel: "Tente buscar:", searchPlaceholder: "Digite uma palavra em holandês: significado + imagem + pronúncia", pos: "Classe", plural: "Plural", forms: "Formas", synonyms: "Sinônimos", antonyms: "Antônimos", offlineMode: "Offline", offlineError: "Você está offline.", contactUs: "Contato", contactDesc: "Dúvidas? Entre em contato!", startLearning: "Começar", 
+    notebook: "Caderno", items: "itens", emptyNotebook: "Nada salvo ainda!", clear: "Limpar", studyMode: "Modo Estudo", emptyStudy: "Salve palavras para estudar!", goToSearch: "Ir para Busca", nextCard: "Próximo", tapToFlip: "Toque para virar", tapToFlipBack: "Voltar", definition: "Definição", example: "Exemplo", dictionary: "Dicionário", pronounce: "Pronunciar", examples: "Exemplos", quickTip: "Dica", settings: "Configurações", motherTongue: "Língua Materna", enableImages: "Imagens IA", enableSfx: "Efectos Sonoros", imageStyle: "Estilo", imageContext: "Contexto", contextTarget: "Cultura Alvo", contextFree: "Livre", styleFlat: "Plano", styleCartoon: "Cartoon", styleGhibli: "Ghibli", styleWatercolor: "Aquarela", stylePixel: "Pixel", styleRealistic: "Realista", historyLabel: "Histórico", greeting: "Dicionário Holandês Moderno", suggestionLabel: "Tente buscar:", searchPlaceholder: "Digite uma palavra em holandês: significado + imagem + pronúncia", pos: "Classe", plural: "Plural", forms: "Formas", synonyms: "Sinônimos", antonyms: "Antônimos", offlineMode: "Offline", offlineError: "Você está offline.", contactUs: "Contato", contactDesc: "Dúvidas? Entre em contato!", startLearning: "Começar", 
     practice: "Praticar", listening: "Ouvindo...", micErrorTitle: "Acesso ao Microfone", micErrorMsg: "Por favor, permita o acesso ao microfone nas configurações do seu navegador."
   },
   [SupportedLanguage.RUSSIAN]: {
