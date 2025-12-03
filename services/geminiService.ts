@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
@@ -269,9 +270,9 @@ export const generateDefinition = async (
     };
 
     let response;
-    // TEST MODE: Force Gemini 3 Pro (No fallback)
-    console.log("Using model: gemini-3-pro");
-    response = await fetchDefinition("gemini-3-pro");
+    // TEST MODE: Force Gemini 3 Pro Preview (No fallback)
+    console.log("Using model: gemini-3-pro-preview");
+    response = await fetchDefinition("gemini-3-pro-preview");
 
     let text = response.text || "";
     
@@ -360,13 +361,12 @@ export const generateVisualization = async (
     Ensure the image clearly depicts the action or object described.`;
 
   try {
-    // TEST MODE: Force Gemini 3 Pro Image (No fallback)
-    console.log("Using model: gemini-3-pro-image");
+    // TEST MODE: Force Gemini 3 Pro Image Preview (No fallback)
+    console.log("Using model: gemini-3-pro-image-preview");
     
-    // Note: If 'gemini-3-pro-image' is not the valid ID, this will throw 404
-    // Valid paid IDs are often simpler or require exact matches from the dashboard
+    // Note: If 'gemini-3-pro-image-preview' is not the valid ID, this will throw 404
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image',
+      model: 'gemini-3-pro-image-preview',
       contents: { parts: [{ text: prompt }] },
       config: { imageConfig: { imageSize: "1K" } }
     });
