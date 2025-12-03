@@ -1,41 +1,9 @@
-
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 
-// Helper to safely get environment variables without crashing in browser
-const getEnv = (key: string) => {
-  // 1. Try Vite standard (import.meta.env)
-  try {
-    // @ts-ignore
-    if (import.meta && import.meta.env && import.meta.env[key]) {
-      // @ts-ignore
-      return import.meta.env[key];
-    }
-  } catch (e) {}
-
-  // 2. Try Node/Webpack standard (process.env) - Safe check
-  try {
-    if (typeof process !== 'undefined' && process.env && process.env[key]) {
-      return process.env[key];
-    }
-  } catch (e) {}
-
-  return "";
-};
-
-// Initialize Gemini Client with robust key lookup
-// Prioritize VITE_GEMINI_API_KEY for Vercel deployments
-const apiKey = getEnv('VITE_GEMINI_API_KEY') || 
-               getEnv('REACT_APP_API_KEY') || 
-               getEnv('API_KEY') || 
-               getEnv('REACT_APP_GEMINI_API_KEY');
-
-if (!apiKey) {
-  console.error("CRITICAL: Gemini API Key is missing. Check Vercel Environment Variables (VITE_GEMINI_API_KEY).");
-}
-
-const ai = new GoogleGenAI({ apiKey: apiKey || "" });
+// Initialize Gemini Client strictly with process.env.API_KEY
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // --- Audio Helpers ---
 function decode(base64: string) {
@@ -354,53 +322,25 @@ export const generateVisualization = async (
     Ensure the image clearly depicts the action or object described.`;
 
   try {
-    // CHANGED: Use generateImages with Imagen 3 model instead of generateContent with Flash
-    // This helps bypass the 429 quota limits often seen on the flash-image model for new keys
-    const response = await ai.models.generateImages({
-      model: 'imagen-3.0-generate-001',
-      prompt: prompt,
-      config: {
-        numberOfImages: 1,
-        aspectRatio: '16:9',
-        outputMimeType: 'image/jpeg'
+    // Use gemini-2.5-flash-image for general availability and reliability
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [
+          { text: prompt }
+        ]
       }
     });
-    
-    if (response.generatedImages && response.generatedImages.length > 0) {
-      // Imagen returns 'imageBytes' (base64)
-      return { data: response.generatedImages[0].image.imageBytes, error: null };
-    }
 
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) {
+        return { data: part.inlineData.data, error: null };
+      }
+    }
     return { data: null, error: "No image data in response." };
   } catch (e: any) {
-    console.warn("Image generation failed (Imagen 3)", e);
-    
-    let msg = cleanErrorMessage(e);
-    const errString = e.toString().toLowerCase();
-
-    // Fallback: If Imagen 3 fails (e.g. 404 Not Found or 400), try Flash Image as backup
-    // This is useful if the API Key doesn't have access to Imagen 3 yet
-    if (errString.includes("404") || errString.includes("not found")) {
-        console.warn("Imagen 3 not found, falling back to Gemini Flash Image...");
-        try {
-            const fallbackResponse = await ai.models.generateContent({
-                model: 'gemini-2.5-flash-image',
-                contents: { parts: [{ text: prompt }] },
-            });
-            // Find image part
-            for (const part of fallbackResponse.candidates?.[0]?.content?.parts || []) {
-                if (part.inlineData) {
-                    return { data: part.inlineData.data, error: null };
-                }
-            }
-        } catch (fallbackError: any) {
-             console.warn("Fallback failed", fallbackError);
-             // Ensure fallback error is also cleaned
-             msg = cleanErrorMessage(fallbackError);
-        }
-    }
-
-    return { data: null, error: msg }; 
+    console.warn("Image generation failed", e);
+    return { data: null, error: cleanErrorMessage(e) }; 
   }
 };
 

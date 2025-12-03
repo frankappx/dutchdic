@@ -42,7 +42,14 @@
     <style>
       .perspective-1000 { perspective: 1000px; }
       .transform-style-3d { transform-style: preserve-3d; }
-      .backface-hidden { backface-visibility: hidden; }
+      /* ADDED -webkit-backface-visibility to fix mirroring glitches on Safari/Mobile */
+      /* Added translateZ(0) to force hardware acceleration and fix z-fighting */
+      .backface-hidden { 
+        backface-visibility: hidden; 
+        -webkit-backface-visibility: hidden; 
+        transform: translateZ(0);
+        -webkit-transform: translateZ(0);
+      }
       .rotate-y-180 { transform: rotateY(180deg); }
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
