@@ -450,8 +450,8 @@ export default function App() {
           onChange={(e) => setSearchTerm(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           placeholder={searchUiData.searchPlaceholder}
-          // UPDATED: Responsive font size (text-xs/sm for mobile) and reduced padding for mobile to fit long placeholder text
-          className="w-full bg-white border-2 border-gray-100 rounded-3xl py-4 pl-5 pr-12 md:p-5 md:pl-6 md:pr-14 text-xs sm:text-sm md:text-lg shadow-sm focus:outline-none focus:border-pop-purple transition-all placeholder:text-gray-400"
+          // UPDATED: Font size increased to text-base (16px) to prevent iOS zoom
+          className="w-full bg-white border-2 border-gray-100 rounded-3xl py-4 pl-5 pr-12 md:p-5 md:pl-6 md:pr-14 text-base md:text-lg shadow-sm focus:outline-none focus:border-pop-purple transition-all placeholder:text-gray-400 placeholder:text-ellipsis"
         />
         <button 
           onClick={() => handleSearch()}
