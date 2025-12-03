@@ -209,7 +209,8 @@ export const generateDefinition = async (
 
       STRICT VALIDATION:
       1. Check if "${term}" is a valid Dutch word, phrase, or common loanword used in Dutch.
-      2. If it is NOT valid Dutch (e.g. English "Hello", Spanish "Hola" vs Dutch "Hallo"), return a JSON where 'definition' is exactly "NOT_DUTCH" and other fields are empty.
+      2. Check for SPELLING ERRORS. If "${term}" is a misspelling of a Dutch word (e.g. "spanend" instead of "spannend"), it is INVALID.
+      3. If it is NOT valid Dutch or has a typo, return a JSON where 'definition' is exactly "NOT_DUTCH" and other fields are empty.
 
       If VALID Dutch, return a JSON object with:
       1. definition: A SHORT, SIMPLE definition STRICTLY in ${sourceLang}. Avoid copyright content.

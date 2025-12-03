@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry, ViewState, SupportedLanguage, ImageStyle, ImageContext } from './types';
 import LanguageSelector from './components/LanguageSelector';
@@ -286,8 +285,8 @@ export default function App() {
       setSearchTerm('');
       setErrorModal({
         show: true,
-        title: "Niet Nederlands? 🇳🇱",
-        message: `"${termToSearch}" appears to be non-Dutch. This dictionary is exclusive to Dutch words!`
+        title: "Unknown or Misspelled Word 🇳🇱",
+        message: `"${termToSearch}" appears to be non-Dutch or misspelled. Please check the spelling and try again!`
       });
       return;
     }
