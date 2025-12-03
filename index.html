@@ -51,23 +51,6 @@
       html { -webkit-text-size-adjust: 100%; }
     </style>
 
-    <!-- Error Suppression (Optional, keeps console clean) -->
-    <script>
-      (function() {
-        const ignoreKeywords = ["quota", "gemini", "exceeded", "429", "resource exhausted", "too many requests", "failed to fetch", "network error", "400", "bad request"];
-        const shouldSuppress = (msg) => {
-          if (!msg) return false;
-          const str = (typeof msg === 'object' ? JSON.stringify(msg) : String(msg)).toLowerCase();
-          return ignoreKeywords.some(kw => str.includes(kw));
-        };
-        const originalError = console.error;
-        console.error = function(...args) {
-          if (args.some(a => shouldSuppress(a))) return;
-          originalError.apply(console, args);
-        };
-      })();
-    </script>
-
     <!-- Import Map for React -->
     <script type="importmap">
     {

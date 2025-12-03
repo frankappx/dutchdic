@@ -8,8 +8,6 @@ import { getAllItems, saveItem, deleteItem } from './services/storage';
 import { UI_TRANSLATIONS, DEFAULT_SUGGESTIONS, LANGUAGES } from './constants';
 
 export default function App() {
-  const [view, setView] = useState<ViewState>('ONBOARDING');
-  
   // Helper to detect system language
   const detectSystemLanguage = () => {
     if (typeof navigator === 'undefined') return SupportedLanguage.ENGLISH;
@@ -33,6 +31,17 @@ export default function App() {
   };
 
   // State
+  // UPDATED: Check localStorage to determine initial view. 
+  // If language is saved, skip ONBOARDING and go to SEARCH.
+  const [view, setView] = useState<ViewState>(() => {
+    try {
+      if (localStorage.getItem('lingopop_sourceLang')) {
+        return 'SEARCH';
+      }
+    } catch (e) {}
+    return 'ONBOARDING';
+  });
+
   const [sourceLang, setSourceLang] = useState<string>(() => {
     // Try to load from local storage first, otherwise detect
     try {

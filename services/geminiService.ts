@@ -4,16 +4,16 @@ import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 
 // Initialize Gemini Client
 // Support both standard process.env (Node/Webpack) and import.meta.env (Vite)
-// Explicitly check REACT_APP_API_KEY as configured in Vercel
-const apiKey = process.env.API_KEY || 
+// Prioritize VITE_GEMINI_API_KEY for Vercel deployments
+const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY ||
+               process.env.API_KEY || 
                process.env.REACT_APP_API_KEY ||
                (import.meta as any).env?.REACT_APP_API_KEY ||
-               (import.meta as any).env?.VITE_GEMINI_API_KEY || 
                (import.meta as any).env?.REACT_APP_GEMINI_API_KEY ||
                process.env.REACT_APP_GEMINI_API_KEY;
 
 if (!apiKey) {
-  console.warn("Missing API Key! Please set REACT_APP_API_KEY in your environment.");
+  console.error("CRITICAL: Gemini API Key is missing. Check Vercel Environment Variables. Looking for VITE_GEMINI_API_KEY.");
 }
 
 const ai = new GoogleGenAI({ apiKey: apiKey || "" });
@@ -256,7 +256,7 @@ export const generateDefinition = async (
     if (!text) return null;
     return JSON.parse(text);
   } catch (error) {
-    // ABSOLUTELY SILENT FAIL - NO CONSOLE.ERROR/WARN
+    console.error("Gemini API Error (generateDefinition):", error);
     // Return NULL to signal failure so the UI can show the custom Error Modal
     return null;
   }
@@ -411,6 +411,7 @@ export const generateVisualization = async (
     return undefined;
   } catch (e) {
     // Silent fail
+    console.warn("Image generation failed", e);
     return undefined; 
   }
 };
@@ -433,6 +434,7 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
     return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
   } catch (error) {
     // Silent fail
+    console.warn("TTS generation failed", error);
     return null;
   }
 };
