@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry } from '../types';
 import { playTTS, initAudio, playSuccessSound, playErrorSound } from '../services/geminiService';
@@ -297,12 +298,19 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
         )}
 
         {/* Image - Full Width Bleed (-mx-6) */}
-        {entry.imageUrl && (
+        {entry.imageUrl ? (
           <div className="-mx-6 mb-6 overflow-hidden shadow-sm border-t border-b border-gray-100">
             {/* CHANGED: Use aspect-[2/1] for 2:1 ratio as requested, with object-cover to crop the 16:9 source */}
             <img src={`data:image/png;base64,${entry.imageUrl}`} alt={entry.term} className="w-full h-auto aspect-[2/1] object-cover transition-all" />
           </div>
-        )}
+        ) : entry.imageError ? (
+          <div className="mb-6 p-6 rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center">
+             <i className="fa-solid fa-image-slash text-4xl text-gray-300 mb-2"></i>
+             <p className="text-sm font-bold text-gray-500">Image Generation Failed</p>
+             <p className="text-xs text-red-500 font-mono mt-1 bg-red-50 px-2 py-1 rounded">{entry.imageError}</p>
+             <p className="text-xs text-gray-400 mt-2">Try using a VPN (US) if you are in EU/UK.</p>
+          </div>
+        ) : null}
 
         {/* Definition */}
         <div className="prose prose-lg mb-6">

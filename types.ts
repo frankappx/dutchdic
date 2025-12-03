@@ -38,6 +38,7 @@ export interface DictionaryEntry {
   examples: ExampleSentence[];
   usageNote: string;
   imageUrl?: string; // Base64 string
+  imageError?: string; // NEW: Store specific image generation error message
   timestamp: number;
 }
 

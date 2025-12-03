@@ -296,29 +296,39 @@ export default function App() {
     // FORCE ENABLE IMAGES
     if (!isQuotaError && navigator.onLine) {
       // CHANGE: Use the first example sentence as context if available, otherwise fallback to definition
-      // This ensures the image matches the usage example
       const visualContext = (defData.examples && defData.examples[0] && defData.examples[0].target)
         ? defData.examples[0].target
         : defData.definition;
 
-      // FORCE 'target' context
-      generateVisualization(termToSearch, visualContext, appSettings.imageStyle, 'target', targetLang).then(async imgBase64 => {
-        if (imgBase64) {
-          // 1. Update Current Entry UI
-          setCurrentEntry(prev => (prev && prev.term === termToSearch) ? { ...prev, imageUrl: imgBase64 } : prev);
-          
-          // 2. Update Saved Items if necessary
-          setSavedItems(prev => {
-            return prev.map(item => {
-              if (item.term === termToSearch) {
-                const updatedItem = { ...item, imageUrl: imgBase64 };
-                saveItem(updatedItem); 
-                return updatedItem;
-              }
-              return item;
-            });
+      // UPDATED: Handle new return signature { data, error }
+      generateVisualization(termToSearch, visualContext, appSettings.imageStyle, 'target', targetLang).then(async result => {
+        // Whether success or error, update the state so UI shows the image OR the error box
+        setCurrentEntry(prev => {
+          if (prev && prev.term === termToSearch) {
+             return { 
+               ...prev, 
+               imageUrl: result.data || undefined,
+               imageError: result.error || undefined
+             };
+          }
+          return prev;
+        });
+        
+        // Also update saved items if user saved it quickly before image loaded
+        setSavedItems(prev => {
+          return prev.map(item => {
+            if (item.term === termToSearch) {
+              const updatedItem = { 
+                ...item, 
+                imageUrl: result.data || undefined,
+                imageError: result.error || undefined
+              };
+              saveItem(updatedItem); 
+              return updatedItem;
+            }
+            return item;
           });
-        }
+        });
       });
     }
   };

@@ -283,102 +283,28 @@ export const generateDefinition = async (
 
 // --- Diverse Dutch Locations & Cultural Scenes for Image Generation ---
 const DUTCH_LOCATIONS = [
-  // Iconic Cityscapes
-  "Amsterdam's Canal Ring at twilight, Prinsengracht with illuminated gabled houses and reflections",
-  "Rijksmuseum with the 'I amsterdam' vibe and cyclists passing by",
-  "Magere Brug (Skinny Bridge) in Amsterdam, white wooden drawbridge illuminated at night",
-  "Jordaan district, narrow streets filled with hollyhocks, bikes, and cozy benches",
-  "Dam Square with the Royal Palace and Nieuwe Kerk, bustling with pigeons and people",
-  "Erasmus Bridge in Rotterdam, modern white cable-stayed bridge against a skyline",
-  "Cube Houses in Rotterdam, striking yellow tilted cube architecture",
-  "Markthal Rotterdam, massive arch with colorful mural on the ceiling",
-  "The Binnenhof & Ridderzaal in The Hague, medieval parliament buildings by the Hofvijver lake",
-  "Dom Tower in Utrecht, the tallest church tower overlooking the city",
-  "Oudegracht in Utrecht, unique split-level wharfs with cellar restaurants near the water",
-  "Delft Market Square with the Nieuwe Kerk and historic City Hall",
-  "Molen de Valk in Leiden, a huge stone windmill standing in the city center",
-  "Vrijthof square in Maastricht with St. Servatius Basilica and St. John's Church",
-  "Sint Servaasbrug in Maastricht, ancient stone arch bridge over the Meuse river",
-  "Haarlem's Grote Markt with the massive St. Bavo Church",
-  "Groningen Museum, colorful postmodern architecture surrounded by water",
-
-  // Windmills & Water
-  "Kinderdijk at sunset, 19 ancient windmills along the polder waterways",
-  "Zaanse Schans with traditional green wooden houses and working windmills",
-  "The giant windmills of Schiedam, the tallest classical windmills in the world",
-  "The Afsluitdijk, a massive straight dike dividing the sea, aerial perspective",
-  "Wouda Steam Pumping Station, industrial cathedral of steam and water",
-  "Waterloopbos, moss-covered hydraulic models hidden in a forest",
-  "Delta Works (Neeltje Jans), massive concrete storm surge barriers",
-  "Classic Dutch Polder landscape, flat green fields divided by straight ditches and cows",
-  "Giethoorn, the village with no roads, thatched-roof farmhouses and small boats",
-
-  // Flowers & Countryside
-  "Keukenhof Gardens with meticulously designed colorful tulip beds",
-  "Lisse Tulip Fields, aerial view of colorful striped flower carpets",
-  "A solitary windmill standing in a vibrant sea of red or yellow tulips",
-  "Alkmaar Cheese Market with carriers in traditional white uniforms and straw hats",
-  "Gouda Cheese Market, yellow cheese wheels stacked high in front of the City Hall",
-  "Friesian black and white cows grazing on green pastures with small canals",
-  "Sheep grazing on a green dike with a lighthouse in the background",
-  "Westland greenhouses at night, emitting a warm orange glow",
-  "Blossoming apple orchards in the Betuwe region during spring",
-
-  // Castles & History
-  "Castle de Haar, a fairytale-like fortress with towers, moats, and gardens",
-  "Muiderslot, a classic medieval square castle surrounded by water",
-  "Paleis Het Loo, Dutch Baroque palace with symmetrical formal gardens",
-  "Koppelpoort in Amersfoort, a medieval combined land and water gate",
-  "Naarden Vesting, a perfect star-shaped fortress city surrounded by double moats",
-
-  // Nature & Coast
-  "Hoge Veluwe National Park, purple heather fields with a solitary dead tree",
-  "Veluwe Sand Drifts, a mini-desert landscape surrounded by pine forests",
-  "Wadden Sea mudflats at low tide, hikers walking on the seabed (Wadlopen)",
-  "Scheveningen Beach with the pier and Ferris wheel over the North Sea",
-  "Texel Lighthouse, a bold red tower standing on a sandy beach",
-  "De Biesbosch National Park, a maze of freshwater creeks and willow forests",
-  "Rolling hills of Limburg, a rare un-flat Dutch landscape",
-
-  // Towns & Villages
-  "Volendam Harbor, old fishing ships and traditional wooden houses",
-  "Marken island, dark green wooden houses on stilts",
-  "Thorn, 'the white town' with all-white painted historic houses",
-  "Appingedam's hanging kitchens suspended over the canal",
-  "Urk, a former island fishing village with a lighthouse and tight streets",
-
-  // Modern & Unique
-  "Hovenring in Eindhoven, a floating bicycle roundabout suspended above the road",
-  "Inntel Hotel Zaandam, a building made of stacked traditional green wooden houses",
-  "Radio Kootwijk, an imposing art deco concrete building in the middle of a heath",
-  "Rotterdam Central Station, modern angular wood and steel architecture",
-  "NEMO Science Museum in Amsterdam, a green copper ship-like building rising from water",
-
-  // Lifestyle & Culture (Gezelligheid)
-  "A parent riding a 'Bakfiets' (cargo bike) with two kids and groceries",
-  "Cycling in the rain, one hand on the handlebar, one holding an umbrella",
-  "A businessman in a suit commuting on an old rusty bicycle",
-  "A couple cycling hand-in-hand side by side",
-  "A 'Brown Café' (Bruin Café) interior, cozy dark wood, Persian rugs on tables, and candles",
-  "People eating raw herring at a street stall, holding the fish by the tail",
-  "King's Day celebration on a canal boat, everyone wearing orange",
-  "A bridge opening for a sailboat while cyclists wait patiently",
-  "Delft Blue pottery workshop with hand-painted ceramics",
-  "Ice skating on frozen canals (Elfstedentocht vibe)",
-  "A cozy living room view through a large window with no curtains, very 'Gezellig'",
-  "Steep and narrow traditional Dutch staircase",
-  "Hoisting furniture through a large window using a hook and rope at the top of the facade",
-  "A cat sleeping on a windowsill between two orchid pots",
-  "A terrace in the sun packed with people enjoying coffee or beer (Terrasje pakken)"
+  "Amsterdam's Canal Ring at twilight",
+  "Rijksmuseum",
+  "Windmills at Kinderdijk",
+  "Tulip fields in Lisse",
+  "Rotterdam Cube Houses",
+  "Utrecht Dom Tower",
+  "Giethoorn village canals",
+  "Delft Market Square",
+  "Gouda Cheese Market",
+  "Scheveningen Beach",
+  "Typical Dutch Brown Cafe",
+  "Cycling on a polder dike"
 ];
 
+// UPDATED: Now returns an object with data OR error
 export const generateVisualization = async (
   term: string, 
   context: string, 
   style: string = 'flat',
   imageContext: ImageContext = 'target',
   targetLang: string = 'the target language culture'
-): Promise<string | undefined> => {
+): Promise<{ data: string | null; error: string | null }> => {
   const stylePrompts: Record<string, string> = {
     cartoon: 'fun, energetic cartoon style',
     ghibli: 'Studio Ghibli anime style, detailed backgrounds, soft colors',
@@ -390,48 +316,57 @@ export const generateVisualization = async (
   const stylePrompt = stylePrompts[style] || stylePrompts['flat'];
   
   let contextPrompt = "";
-  // Always enforce Target context for this app version
   if (true) {
-    // If Dutch, pick a random location to avoid Amsterdam/Windmill repetition
     if (targetLang.toLowerCase().includes('dutch') || targetLang.toLowerCase().includes('nederlands')) {
        const randomLocation = DUTCH_LOCATIONS[Math.floor(Math.random() * DUTCH_LOCATIONS.length)];
-       // Add specific vibes requested: Relaxed, Authentic people, Brick architecture, Overcast sky
-       const dutchVibe = "Atmosphere: Relaxed 'gezellig' vibe. People: Authentic Dutch people (diverse), casual clothing (jeans, practical style). Environment: typical red brick architecture, soft overcast sky (classic Dutch light).";
-       
-       contextPrompt = `Set the scene in the Netherlands. Specific Setting: ${randomLocation}. ${dutchVibe} Incorporate Dutch cultural elements naturally. Ensure the environment reflects this specific Dutch location style.`;
+       const dutchVibe = "Atmosphere: Relaxed 'gezellig' vibe. Environment: typical red brick architecture, soft overcast sky.";
+       contextPrompt = `Set the scene in the Netherlands. Specific Setting: ${randomLocation}. ${dutchVibe}`;
     } else {
-       contextPrompt = `Set the scene in a typical ${targetLang} cultural setting or environment.`;
+       contextPrompt = `Set the scene in a typical ${targetLang} cultural setting.`;
     }
   }
 
   try {
-    // Stronger instruction to use the sentence as the literal prompt
     const prompt = `Create a ${stylePrompt} illustration based on the following sentence: "${context}".
     Key object/concept to highlight: "${term}".
     Visualize the literal meaning of this sentence.
     ${contextPrompt}
-    Ensure the image clearly depicts the action or object described in the sentence within the specified cultural setting.`;
+    Ensure the image clearly depicts the action or object described.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-image",
       contents: prompt,
       config: {
         imageConfig: {
-          aspectRatio: "16:9" // API supports 16:9 (1.77:1), we will crop to 2:1 in CSS
+          aspectRatio: "16:9" 
         }
       }
     });
 
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) {
-        return part.inlineData.data;
+        return { data: part.inlineData.data, error: null };
       }
     }
-    return undefined;
-  } catch (e) {
-    // Silent fail
+    return { data: null, error: "No image data in response." };
+  } catch (e: any) {
     console.warn("Image generation failed", e);
-    return undefined; 
+    
+    // Construct meaningful error message
+    let msg = "Image generation failed.";
+    const errString = e.toString();
+    
+    if (errString.includes("400")) {
+      msg = "Region Restricted (400). Google AI Images are blocked in EU/UK. Use a US VPN.";
+    } else if (errString.includes("403")) {
+      msg = "Access Denied (403). API Key missing permissions.";
+    } else if (errString.includes("429")) {
+      msg = "Quota Limit (429). Too many requests.";
+    } else if (errString.includes("500")) {
+      msg = "Google Server Error (500).";
+    }
+
+    return { data: null, error: msg }; 
   }
 };
 
