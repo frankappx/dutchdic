@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type } from "@google/genai";
 
 // Configuration for rate limiting
-const DELAY_BETWEEN_WORDS_MS = 4000; // 4 seconds (safe for 20 RPM limit on Pro Image)
+const DELAY_BETWEEN_WORDS_MS = 25000; // 25 seconds (Very safe for 20 RPM limit on Pro Image)
 const STORAGE_BUCKET = 'dictionary-assets';
 
 // Helper: Pause execution
@@ -61,7 +61,8 @@ export const processBatch = async (
              "plural": "huizen (if noun)", 
              "article": "de/het (if noun)",
              "verbForms": "lopen - liep - gelopen (if verb)", 
-             "synonyms": ["nl word"] 
+             "synonyms": ["nl word"],
+             "antonyms": ["nl word"]
           },
           "usageNote": "Fun tip in English",
           "examples": [
@@ -107,7 +108,12 @@ export const processBatch = async (
         }
       });
       
-      const textData = JSON.parse(textResp.text() || "{}");
+      // FIX: Use .text property (not method) and strip Markdown
+      let rawText = textResp.text || "{}";
+      rawText = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
+      
+      const textData = JSON.parse(rawText);
+      
       if (!textData.definition) throw new Error("Failed to generate text data");
 
       // 2. GENERATE IMAGE (Gemini 3 Pro Image - High Quality)
