@@ -1,9 +1,8 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type } from "@google/genai";
 
 // Configuration for rate limiting
-const DELAY_BETWEEN_WORDS_MS = 25000; // 25 seconds (Very safe for 20 RPM limit on Pro Image)
+const DELAY_BETWEEN_WORDS_MS = 25000; // 25 seconds (Safe for Pro Image limits)
 const STORAGE_BUCKET = 'dictionary-assets';
 
 // Helper: Pause execution
@@ -107,7 +106,7 @@ export const processBatch = async (
     onLog(`🤖 Processing [${i + 1}/${words.length}]: ${term}`);
 
     try {
-      // 1. GENERATE TEXT DATA (Gemini 2.5 Flash - Fast)
+      // 1. GENERATE TEXT DATA (Switching to Gemini 3 Pro for stability)
       onLog(`📝 Generating definitions...`);
       
       const systemInstruction = `
@@ -126,8 +125,8 @@ export const processBatch = async (
         2. Definition: Max 15 words. Concise.
         3. Usage Note: Max 2 sentences (approx 20 words). Fun/Casual tone.
         4. Examples: Exactly 2 examples.
-        5. Synonyms/Antonyms: Max 5 items each. TRY TO PROVIDE AT LEAST 1 IF POSSIBLE.
-        6. OUTPUT: Pure JSON only.
+        5. Synonyms/Antonyms: Max 5 items each. PROVIDE AT LEAST 1.
+        6. OUTPUT: Pure JSON only. NO EXPLANATIONS.
 
         Output Format (JSON):
         {
@@ -148,8 +147,9 @@ export const processBatch = async (
         }
       `;
       
+      // SWITCHED TO gemini-3-pro-preview to prevent looping/hallucinations
       const textResp = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3-pro-preview",
         contents: prompt,
         config: {
           systemInstruction: systemInstruction,
