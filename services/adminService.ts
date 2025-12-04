@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -136,6 +137,7 @@ export const processBatch = async (
              "plural": "huizen (if noun)", 
              "article": "de/het",
              "verbForms": "lopen - liep - gelopen (if verb)", 
+             "adjectiveForms": "mooi - mooier - mooist (if adjective)",
              "synonyms": ["word1", "word2"],
              "antonyms": ["word1"]
           },
@@ -166,6 +168,7 @@ export const processBatch = async (
                   plural: { type: Type.STRING },
                   article: { type: Type.STRING },
                   verbForms: { type: Type.STRING },
+                  adjectiveForms: { type: Type.STRING },
                   synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
                   antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
                 }

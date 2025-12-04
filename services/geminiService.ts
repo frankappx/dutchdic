@@ -174,10 +174,11 @@ export const generateDefinition = async (
         const styles = data.images_by_style || {};
         const dbImageUrl = styles[preferredStyle] || styles['ghibli'] || Object.values(styles)[0] || undefined;
         
-        // Map Examples (fixing snake_case audio_url to audioUrl)
+        // Map Examples (Robustly handle column names)
+        // RPC might return 'target'/'source' OR 'dutch_sentence'/'translation'
         const mappedExamples = (data.examples || []).map((ex: any) => ({
-          target: ex.target,
-          source: ex.source,
+          target: ex.target || ex.dutch_sentence || "",
+          source: ex.source || ex.translation || "",
           audioUrl: ex.audio_url // Map audio_url -> audioUrl
         }));
 
