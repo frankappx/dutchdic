@@ -146,6 +146,63 @@ export const playErrorSound = async () => {
   } catch (e) {}
 };
 
+// --- IMAGE HELPERS ---
+
+/**
+ * Adds a watermark to the bottom right of the image using HTML5 Canvas.
+ * @param base64Image Raw base64 string (no data prefix)
+ * @returns Promise resolving to new base64 string
+ */
+const addWatermark = (base64Image: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // 1. Draw Original Image
+        ctx.drawImage(img, 0, 0);
+
+        // 2. Configure Watermark Text
+        const text = "@Parlolo";
+        // Dynamic font size: 3% of image width, min 16px
+        const fontSize = Math.max(16, Math.floor(img.width * 0.035));
+        const padding = Math.floor(fontSize * 0.8);
+
+        ctx.font = `900 ${fontSize}px sans-serif`; // Extra Bold
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        
+        const x = img.width - padding;
+        const y = img.height - padding;
+
+        // 3. Draw Shadow/Stroke (for contrast on any background)
+        ctx.shadowColor = "rgba(0,0,0,0.8)";
+        ctx.shadowBlur = 4;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0,0,0, 0.6)';
+        ctx.strokeText(text, x, y);
+
+        // 4. Draw White Text
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.fillText(text, x, y);
+      }
+      
+      // Return clean Base64 (strip prefix)
+      const dataUrl = canvas.toDataURL('image/png');
+      resolve(dataUrl.split(',')[1]);
+    };
+    img.onerror = () => {
+        // Fallback: return original if canvas fails
+        resolve(base64Image); 
+    };
+    img.src = `data:image/png;base64,${base64Image}`;
+  });
+};
+
 // --- API Methods ---
 
 export const generateDefinition = async (
@@ -319,14 +376,15 @@ export const generateVisualization = async (
      contextPrompt = `Set the scene in a typical ${targetLang} cultural setting.`;
   }
 
+  // Updated Prompt: Explicitly forbid text.
   const prompt = `Create a ${stylePrompt} illustration based on the following sentence: "${context}".
     Key object/concept to highlight: "${term}".
     Visualize the literal meaning of this sentence.
     ${contextPrompt}
     
     STRICT REQUIREMENTS:
-    1. Do NOT include any text, labels, words, or the sentence in the illustration. No speech bubbles.
-    2. The ONLY text allowed is a small, subtle watermark "@Parlolo" in the bottom right corner.`;
+    1. STRICTLY NO TEXT. Do not include any words, letters, labels, or speech bubbles in the image.
+    2. The image should be pure visual art.`;
 
   try {
     console.log("Using image model: gemini-3-pro-image-preview");
@@ -338,7 +396,9 @@ export const generateVisualization = async (
 
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) {
-        return { data: part.inlineData.data, error: null };
+        // Manually add the watermark here
+        const watermarkedBase64 = await addWatermark(part.inlineData.data);
+        return { data: watermarkedBase64, error: null };
       }
     }
     return { data: null, error: "No image data in response." };

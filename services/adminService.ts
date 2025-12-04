@@ -21,6 +21,52 @@ export interface BatchConfig {
 // Helper: Pause execution
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+// Helper: Add Watermark (Canvas)
+const addWatermark = (base64Image: string): Promise<string> => {
+  return new Promise((resolve) => {
+    // In nodejs environments this won't work without a canvas polyfill, 
+    // but assuming this runs in the browser-based AdminPanel as per file structure.
+    if (typeof window === 'undefined') {
+        resolve(base64Image); // Fallback for server-side if ever moved
+        return;
+    }
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+
+        const text = "@Parlolo";
+        const fontSize = Math.max(16, Math.floor(img.width * 0.035));
+        const padding = Math.floor(fontSize * 0.8);
+
+        ctx.font = `900 ${fontSize}px sans-serif`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'bottom';
+        
+        const x = img.width - padding;
+        const y = img.height - padding;
+
+        ctx.shadowColor = "rgba(0,0,0,0.8)";
+        ctx.shadowBlur = 4;
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0,0,0, 0.6)';
+        ctx.strokeText(text, x, y);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+        ctx.fillText(text, x, y);
+      }
+      resolve(canvas.toDataURL('image/png').split(',')[1]);
+    };
+    img.onerror = () => resolve(base64Image);
+    img.src = `data:image/png;base64,${base64Image}`;
+  });
+};
+
 // Helper: Create WAV Header
 const createWavFile = (pcmData: Uint8Array): Blob => {
   const numChannels = 1;
@@ -298,10 +344,11 @@ export const processBatch = async (
         };
         const stylePrompt = stylePrompts[config.imageStyle] || stylePrompts['ghibli'];
 
+        // Updated Prompt: Removed Watermark instruction, focusing on NO TEXT.
         const imgPrompt = `Create a ${stylePrompt} illustration of: "${contextSentence}". Key object: "${term}". 
         STRICT REQUIREMENTS:
-        1. Do NOT include any text, labels, words, or the sentence in the illustration. No speech bubbles.
-        2. The ONLY text allowed is a small, subtle watermark "@Parlolo" in the bottom right corner.`;
+        1. STRICTLY NO TEXT. Do not include any words, letters, labels, or speech bubbles in the image.
+        2. The image should be pure visual art.`;
 
         try {
           const imgResp = await ai.models.generateContent({
@@ -313,7 +360,11 @@ export const processBatch = async (
           const base64Img = imgResp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
           
           if (base64Img) {
-            const rawBytes = base64ToUint8Array(base64Img);
+            // Apply Watermark Programmatically using Canvas
+            onLog(`   -> Adding watermark...`);
+            const watermarkedBase64 = await addWatermark(base64Img);
+
+            const rawBytes = base64ToUint8Array(watermarkedBase64);
             if (rawBytes) {
                 const blob = new Blob([rawBytes], { type: 'image/png' });
                 const fileName = `images/${term}_${config.imageStyle}_${Date.now()}.png`;
@@ -327,7 +378,7 @@ export const processBatch = async (
                      image_url: urlData.publicUrl
                    }, { onConflict: 'word_id, style' });
                    
-                   onLog(`✅ Image uploaded.`);
+                   onLog(`✅ Image uploaded (with watermark).`);
                 }
             }
           }
