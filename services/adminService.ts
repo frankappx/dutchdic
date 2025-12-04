@@ -67,36 +67,43 @@ export const processBatch = async (
       // 1. GENERATE TEXT DATA (Gemini 2.5 Flash - Fast)
       onLog(`📝 Generating definitions...`);
       const prompt = `
-        Analyze the Dutch word "${term}".
-        Target Language (Learning): Dutch (nl). 
-        Source Language (Translation): ${targetLangName} (${targetLangCode}).
+        Role: Strict Dictionary Database Generator.
+        Task: Analyze the Dutch word "${term}" and output structured JSON.
         
-        Strictly return JSON:
+        Constraints:
+        1. Target Language: Dutch (nl). Source Language: ${targetLangName} (${targetLangCode}).
+        2. Definition: Max 15 words. Concise.
+        3. Usage Note: Max 2 sentences. Fun/Casual tone.
+        4. Examples: Exactly 2 examples.
+        5. Synonyms/Antonyms: Max 5 items each.
+        6. NO MARKDOWN. NO PREAMBLE. PURE JSON.
+
+        Output Format (JSON):
         {
-          "definition": "Definition strictly in ${targetLangName}. Keep it SHORT (Max 15 words).",
+          "definition": "Definition in ${targetLangName}",
           "partOfSpeech": "zn. / ww. / bn.",
           "grammar_data": { 
-             "plural": "huizen (if noun, in Dutch)", 
-             "article": "de/het (if noun)",
-             "verbForms": "lopen - liep - gelopen (if verb, in Dutch)", 
-             "synonyms": ["Dutch word 1", "Dutch word 2"],
-             "antonyms": ["Dutch word 1"]
+             "plural": "huizen (if noun)", 
+             "article": "de/het",
+             "verbForms": "lopen - liep - gelopen (if verb)", 
+             "synonyms": ["word1", "word2"],
+             "antonyms": ["word1"]
           },
-          "usageNote": "Fun tip strictly in ${targetLangName}. KEEP IT SHORT (Max 2 sentences, fun tone).",
+          "usageNote": "Tip in ${targetLangName}",
           "examples": [
-            { "dutch": "Dutch sentence 1", "translation": "Translation in ${targetLangName}" },
-            { "dutch": "Dutch sentence 2", "translation": "Translation in ${targetLangName}" }
+            { "dutch": "Dutch sentence 1", "translation": "Trans 1" },
+            { "dutch": "Dutch sentence 2", "translation": "Trans 2" }
           ]
         }
-        STRICTLY return pure JSON. No markdown, no rambling.
       `;
       
       const textResp = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
         config: {
+          systemInstruction: "You are a precise data generation machine. Output only valid JSON. Be concise.",
           responseMimeType: "application/json",
-          maxOutputTokens: 8192, // Increased from 2000 to prevent cutoff
+          maxOutputTokens: 8192, 
           responseSchema: {
             type: Type.OBJECT,
             properties: {

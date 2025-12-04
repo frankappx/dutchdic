@@ -203,35 +203,26 @@ export const generateDefinition = async (
       : `The translation in the Source Language (${sourceLang}).`;
 
     const prompt = `
-      Analyze the term "${term}". 
-      Target Language (Learning): ${targetLang}. 
-      Source Language (Native): ${sourceLang}.
-
-      INSTRUCTIONS FOR LANGUAGES:
-      1. DEFINITION and USAGE NOTE must be written in ${sourceLang}. (If ${sourceLang} is Chinese, use simplified Chinese).
+      Role: Strict Dictionary API.
+      Task: Analyze the term "${term}" for a Dutch learner.
+      
+      Constraints:
+      1. Target Language: ${targetLang}. Source Language: ${sourceLang}.
+      2. Definition: Max 15 words. Concise.
+      3. Usage Note: Max 2 sentences. Fun/Casual tone.
+      4. Examples: Exactly 2 examples.
+      5. Synonyms/Antonyms: Max 5 items each.
+      6. OUTPUT: Pure JSON.
+      
+      Instructions:
+      1. DEFINITION and USAGE NOTE must be written in ${sourceLang}.
       2. SYNONYMS, ANTONYMS, PLURALS, and VERB FORMS must be in the TARGET LANGUAGE (${targetLang}) and NOT translated.
       3. Do NOT use English unless ${sourceLang} is explicitly English.
 
       STRICT VALIDATION:
-      1. Check if "${term}" is a valid Dutch word, phrase, or common loanword used in Dutch.
-      2. Check for SPELLING ERRORS. If "${term}" is a misspelling of a Dutch word (e.g. "spanend" instead of "spannend"), it is INVALID.
-      3. If it is NOT valid Dutch or has a typo, return a JSON where 'definition' is exactly "NOT_DUTCH" and other fields are empty.
-
-      If VALID Dutch, return a JSON object with:
-      1. definition: A SHORT, SIMPLE definition STRICTLY in ${sourceLang}. Avoid copyright content.
-      2. examples: An array of 2 objects. For each object:
-         - 'target': The sentence in the Target Language (${targetLang}).
-         - 'source': ${exampleInstruction}
-         - IMPORTANT: Ensure examples are original.
-      3. usageNote: A casual, fun "friend-to-friend" usage note STRICTLY in ${sourceLang}. KEEP IT SHORT (Max 20 words).
-      4. grammar: An object containing detailed grammatical data:
-         - partOfSpeech: The abbreviation in ${targetLang} (e.g. 'zn.', 'ww.', 'bn.').
-         - article: If noun, the article in ${targetLang} (e.g. 'de', 'het').
-         - plural: If noun, the plural form in ${targetLang}.
-         - verbForms: If verb, the conjugation in ${targetLang} (e.g. "liep - gelopen").
-         - adjectiveForms: If adjective, degrees in ${targetLang} (e.g. "mooi - mooier - mooist").
-         - synonyms: Array of strings STRICTLY in ${targetLang}.
-         - antonyms: Array of strings STRICTLY in ${targetLang}.
+      1. Check if "${term}" is a valid Dutch word, phrase, or common loanword.
+      2. Check for SPELLING ERRORS (e.g. "spanend" -> INVALID).
+      3. If INVALID, return JSON with 'definition': "NOT_DUTCH".
     `;
 
     console.log("Using text model: gemini-2.5-flash");
@@ -241,7 +232,7 @@ export const generateDefinition = async (
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_BASE,
         responseMimeType: "application/json",
-        maxOutputTokens: 8192, // Increased from 2000 to prevent massive/truncated responses
+        maxOutputTokens: 8192,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
