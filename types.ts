@@ -44,7 +44,7 @@ export interface DictionaryEntry {
   timestamp: number;
 }
 
-export type ViewState = 'ONBOARDING' | 'SEARCH' | 'NOTEBOOK' | 'FLASHCARDS' | 'RESULT' | 'SETTINGS';
+export type ViewState = 'ONBOARDING' | 'SEARCH' | 'NOTEBOOK' | 'FLASHCARDS' | 'RESULT' | 'SETTINGS' | 'ADMIN';
 
 export type ImageStyle = 'flat' | 'cartoon' | 'ghibli' | 'watercolor' | 'pixel' | 'realistic';
 

@@ -1,10 +1,10 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry, ViewState, SupportedLanguage, ImageStyle, ImageContext } from './types';
 import LanguageSelector from './components/LanguageSelector';
 import ResultView from './components/ResultView';
 import Flashcard from './components/Flashcard';
+import AdminPanel from './components/AdminPanel'; // Import Admin Panel
 import { generateDefinition, generateVisualization } from './services/geminiService';
 import { getAllItems, saveItem, deleteItem } from './services/storage';
 import { UI_TRANSLATIONS, DEFAULT_SUGGESTIONS, LANGUAGES } from './constants';
@@ -50,8 +50,6 @@ export default function App() {
   };
 
   // State
-  // UPDATED: Check localStorage to determine initial view. 
-  // If language is saved, skip ONBOARDING and go to SEARCH.
   const [view, setView] = useState<ViewState>(() => {
     try {
       if (localStorage.getItem('lingopop_sourceLang')) {
@@ -62,26 +60,20 @@ export default function App() {
   });
 
   const [sourceLang, setSourceLang] = useState<string>(() => {
-    // Try to load from local storage first, otherwise detect
     try {
       const saved = localStorage.getItem('lingopop_sourceLang');
       if (saved) return saved;
       
       const detected = detectSystemLanguage();
-      // Smart Heuristic: If detected language is the same as the Target Language (Dutch),
-      // default to English. This prevents the app from defaulting to Monolingual mode
-      // for expats or users with Dutch locale settings who are still learners.
       if (detected === SupportedLanguage.DUTCH) {
         return SupportedLanguage.ENGLISH;
       }
-      
       return detected;
     } catch {
       return detectSystemLanguage();
     }
   });
 
-  // Hardcoded Target Language: Dutch
   const targetLang = SupportedLanguage.DUTCH;
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -92,8 +84,6 @@ export default function App() {
   
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  // App Settings
-  // FIXED: enableImages is always true, imageContext is always 'target' (Dutch culture)
   const [appSettings, setAppSettings] = useState<{
     enableImages: boolean, 
     enableSfx: boolean,
@@ -106,24 +96,18 @@ export default function App() {
     imageContext: 'target'
   });
 
-  // State for Flashcard navigation
   const [flashcardIndex, setFlashcardIndex] = useState(0);
-
-  // State for Notebook Pagination
   const [notebookPage, setNotebookPage] = useState(1);
   const NOTEBOOK_ITEMS_PER_PAGE = 10;
 
-  // State for Error Modal
   const [errorModal, setErrorModal] = useState<{ show: boolean, title: string, message: string }>({
     show: false,
     title: '',
     message: ''
   });
 
-  // Network Listener
   useEffect(() => {
-    console.log("LingoPop: Loaded v2.6 (DB Integrated)");
-
+    console.log("LingoPop: Loaded v2.7 (Admin Panel Included)");
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);
@@ -134,16 +118,12 @@ export default function App() {
     };
   }, []);
 
-  // Persist Source Language
   useEffect(() => {
     try {
       localStorage.setItem('lingopop_sourceLang', sourceLang);
-    } catch (e) {
-      console.warn("Failed to save source language", e);
-    }
+    } catch (e) {}
   }, [sourceLang]);
 
-  // Ensure Notebook page is valid when items change
   useEffect(() => {
     const totalPages = Math.ceil(savedItems.length / NOTEBOOK_ITEMS_PER_PAGE) || 1;
     if (notebookPage > totalPages) {
@@ -151,13 +131,11 @@ export default function App() {
     }
   }, [savedItems.length, notebookPage]);
 
-  // Helper for UI Translations
   const getUiLabel = (key: string) => {
     const langLabels = UI_TRANSLATIONS[sourceLang] || UI_TRANSLATIONS[SupportedLanguage.ENGLISH];
     return langLabels[key] || UI_TRANSLATIONS[SupportedLanguage.ENGLISH][key];
   };
 
-  // Get current search UI data based on selected languages (No API Call)
   const searchUiData = {
     greeting: getUiLabel('greeting'),
     suggestionLabel: getUiLabel('suggestionLabel'),
@@ -165,23 +143,19 @@ export default function App() {
     suggestions: DEFAULT_SUGGESTIONS[targetLang] || DEFAULT_SUGGESTIONS[SupportedLanguage.ENGLISH] || ["Hallo", "Liefde", "Koffie"]
   };
 
-  // Scroll to top whenever view changes
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [view]);
 
-  // Load data (migrate from localStorage to IndexedDB if needed)
   useEffect(() => {
     const loadData = async () => {
       try {
-        // 1. History & Settings (Small data, keep in localStorage)
         const history = localStorage.getItem('lingopop_history');
         if (history) setSearchHistory(JSON.parse(history));
         
         const savedSettings = localStorage.getItem('lingopop_settings');
         if (savedSettings) {
           const parsed = JSON.parse(savedSettings);
-          // Enforce defaults: Images always on, Context always target
           setAppSettings(prev => ({ 
             ...prev, 
             ...parsed,
@@ -190,23 +164,18 @@ export default function App() {
           }));
         }
 
-        // 2. Saved Items (Big data, use IndexedDB)
-        // Migration Check: If we have data in localStorage but not in IndexedDB, migrate it.
         const localSaved = localStorage.getItem('lingopop_saved');
         let items = await getAllItems();
 
         if (localSaved && items.length === 0) {
-           console.warn("Migrating data from localStorage to IndexedDB...");
            const parsedLocal = JSON.parse(localSaved) as DictionaryEntry[];
            for (const item of parsedLocal) {
              await saveItem(item);
            }
            items = parsedLocal;
-           localStorage.removeItem('lingopop_saved'); // Clear old storage
+           localStorage.removeItem('lingopop_saved');
         }
 
-        // IndexedDB returns typically by ID (creation time), but we want newest first usually
-        // Sorting by timestamp descending
         items.sort((a, b) => b.timestamp - a.timestamp);
         setSavedItems(items);
 
@@ -217,41 +186,31 @@ export default function App() {
     loadData();
   }, []);
 
-  // Persist search history (LocalStorage is fine for strings)
   useEffect(() => {
     try {
       localStorage.setItem('lingopop_history', JSON.stringify(searchHistory));
-    } catch (e) {
-      console.warn("Failed to save history", e);
-    }
+    } catch (e) {}
   }, [searchHistory]);
 
-  // Persist settings
   useEffect(() => {
     try {
-      // Force defaults before saving
       const settingsToSave = {
         ...appSettings,
         enableImages: true,
         imageContext: 'target'
       };
       localStorage.setItem('lingopop_settings', JSON.stringify(settingsToSave));
-    } catch (e) {
-      console.warn("Failed to save settings", e);
-    }
+    } catch (e) {}
   }, [appSettings]);
 
   const handleSearch = async (termOverride?: string) => {
     const termToSearch = termOverride || searchTerm;
     if (!termToSearch.trim()) return;
 
-    // LOCAL FIRST STRATEGY: Check if it's already in saved items
-    // This allows offline viewing of saved words
     const existingEntry = savedItems.find(item => item.term.toLowerCase() === termToSearch.toLowerCase());
     
     if (existingEntry) {
       setCurrentEntry(existingEntry);
-      // Move this history to top
       setSearchHistory(prev => {
         const newHistory = [termToSearch.toLowerCase(), ...prev.filter(t => t.toLowerCase() !== termToSearch.toLowerCase())].slice(0, 10);
         return newHistory;
@@ -261,7 +220,6 @@ export default function App() {
       return;
     }
 
-    // IF OFFLINE and not saved, show error
     if (!isOnline) {
       setErrorModal({
         show: true,
@@ -273,12 +231,10 @@ export default function App() {
 
     setIsLoading(true);
     setSearchTerm(termToSearch); 
-    setView('SEARCH'); // Show loading state
+    setView('SEARCH');
     
-    // NOTE: generateDefinition now checks Database first!
-    const defData = await generateDefinition(termToSearch, sourceLang, targetLang);
+    const defData = await generateDefinition(termToSearch, sourceLang, targetLang, appSettings.imageStyle);
     
-    // CHECK FOR NON-DUTCH WORD (Updated with Localized Error)
     if (defData && defData.definition === "NOT_DUTCH") {
       setIsLoading(false);
       setSearchTerm('');
@@ -310,7 +266,6 @@ export default function App() {
     
     setCurrentEntry(newEntry);
     
-    // Update History (store in lowercase)
     setSearchHistory(prev => {
       const newHistory = [termToSearch.toLowerCase(), ...prev.filter(t => t.toLowerCase() !== termToSearch.toLowerCase())].slice(0, 10);
       return newHistory;
@@ -320,11 +275,9 @@ export default function App() {
     setIsLoading(false);
     setSearchTerm('');
 
-    // Fetch image in background ONLY if not already provided by Database
     const isQuotaError = defData.definition.includes("(Service Busy)");
     const hasDbImage = !!defData.imageUrl;
     
-    // FORCE ENABLE IMAGES
     if (!isQuotaError && !hasDbImage && navigator.onLine) {
       const visualContext = (defData.examples && defData.examples[0] && defData.examples[0].target)
         ? defData.examples[0].target
@@ -342,7 +295,6 @@ export default function App() {
           return prev;
         });
         
-        // Also update saved items if user saved it quickly before image loaded
         setSavedItems(prev => {
           return prev.map(item => {
             if (item.term === termToSearch) {
@@ -372,7 +324,6 @@ export default function App() {
         setSavedItems(prev => [entry, ...prev]);
       }
     } catch (error: any) {
-      console.warn("Save error:", error);
       if (error.name === 'QuotaExceededError') {
          setErrorModal({
            show: true,
@@ -384,19 +335,15 @@ export default function App() {
   };
 
   const handleUpdateEntry = async (updatedEntry: DictionaryEntry) => {
-    // Update current entry if it matches
     if (currentEntry && currentEntry.id === updatedEntry.id) {
       setCurrentEntry(updatedEntry);
     }
-    // Update saved items if it exists there (Update State + DB)
     const isSaved = savedItems.some(item => item.id === updatedEntry.id);
     if (isSaved) {
        try {
          await saveItem(updatedEntry);
          setSavedItems(prev => prev.map(item => item.id === updatedEntry.id ? updatedEntry : item));
-       } catch (error) {
-         console.warn("Update error:", error);
-       }
+       } catch (error) {}
     }
   };
 
@@ -404,9 +351,7 @@ export default function App() {
     setFlashcardIndex(prev => (prev + 1) % savedItems.length);
   };
 
-  // --- Render Helpers ---
-
-  // Common Logo Component: Intelligent Image with Emoji Fallback
+  // Render Helpers
   const renderLogo = (isSmall = false) => (
     <div className="mb-1 flex justify-center items-center select-none">
        <img 
@@ -419,7 +364,6 @@ export default function App() {
            document.getElementById('fallback-logo-emojis')!.classList.add('flex');
          }}
        />
-
        <div id="fallback-logo-emojis" className="hidden justify-center items-end gap-1">
           <span className="text-5xl">🌷</span>
           <span className="text-5xl">🌾</span>
@@ -436,13 +380,9 @@ export default function App() {
       <div className="text-center mb-4">
         {renderLogo(true)}
         <h1 className="text-xl font-black text-pop-dark mb-1 leading-tight">{getUiLabel('greeting')}</h1>
-        <p className="text-xs text-gray-400">
-          Modern Dutch Dictionary
-        </p>
+        <p className="text-xs text-gray-400">Modern Dutch Dictionary</p>
       </div>
-      
       <LanguageSelector type="source" selected={sourceLang} onSelect={setSourceLang} />
-      
       <button 
         disabled={!sourceLang}
         onClick={() => setView('SEARCH')}
@@ -459,7 +399,6 @@ export default function App() {
         {renderLogo()}
         <h1 className="text-2xl font-black text-pop-dark mt-2">{getUiLabel('greeting')}</h1>
       </div>
-      
       <div className="w-full relative">
         <input 
           id="search-input"
@@ -475,12 +414,10 @@ export default function App() {
           onClick={() => handleSearch()}
           disabled={isLoading}
           className="absolute right-3 top-2 md:top-3 w-9 h-9 md:w-10 md:h-10 bg-pop-yellow rounded-full flex items-center justify-center text-pop-dark shadow-sm hover:scale-105 transition-transform"
-          aria-label="Search"
         >
           {isLoading ? <i className="fa-solid fa-spinner fa-spin text-xs md:text-base"></i> : <i className="fa-solid fa-arrow-right text-xs md:text-base"></i>}
         </button>
       </div>
-
       <div className="mt-12 text-center text-gray-400 text-sm w-full">
         {searchHistory.length > 0 && (
           <>
@@ -506,7 +443,6 @@ export default function App() {
   );
 
   const renderNotebook = () => {
-    // Pagination Logic
     const totalPages = Math.ceil(savedItems.length / NOTEBOOK_ITEMS_PER_PAGE) || 1;
     const startIndex = (notebookPage - 1) * NOTEBOOK_ITEMS_PER_PAGE;
     const paginatedItems = savedItems.slice(startIndex, startIndex + NOTEBOOK_ITEMS_PER_PAGE);
@@ -556,7 +492,6 @@ export default function App() {
                   onClick={() => setNotebookPage(p => Math.max(1, p - 1))}
                   disabled={notebookPage === 1}
                   className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 text-pop-dark shadow-sm transition-all"
-                  aria-label="Previous page"
                 >
                   <i className="fa-solid fa-chevron-left"></i>
                 </button>
@@ -567,7 +502,6 @@ export default function App() {
                   onClick={() => setNotebookPage(p => Math.min(totalPages, p + 1))}
                   disabled={notebookPage === totalPages}
                   className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 text-pop-dark shadow-sm transition-all"
-                  aria-label="Next page"
                 >
                   <i className="fa-solid fa-chevron-right"></i>
                 </button>
@@ -606,7 +540,6 @@ export default function App() {
                     }}
                   />
                 )}
-                
                 <div className="text-center mt-3 flex justify-center items-center gap-4">
                   <span className="text-gray-400 text-xs font-bold tracking-widest">
                     {(flashcardIndex % savedItems.length) + 1} / {savedItems.length}
@@ -636,8 +569,6 @@ export default function App() {
           <h3 className="font-bold text-lg text-gray-800 mb-4">{getUiLabel('motherTongue')}</h3>
           <div className="relative">
             <select
-              id="language-select"
-              name="language"
               value={sourceLang}
               onChange={(e) => setSourceLang(e.target.value)}
               className="w-full bg-gray-50 border border-gray-200 text-gray-700 py-3 px-4 pr-8 rounded-xl leading-tight focus:outline-none focus:bg-white focus:border-pop-purple appearance-none font-medium cursor-pointer"
@@ -660,7 +591,6 @@ export default function App() {
             <button 
               onClick={() => setAppSettings(prev => ({...prev, enableSfx: !prev.enableSfx}))}
               className={`w-14 h-8 rounded-full p-1 transition-colors ${appSettings.enableSfx ? 'bg-pop-purple' : 'bg-gray-200'}`}
-              aria-label={appSettings.enableSfx ? "Disable sound effects" : "Enable sound effects"}
             >
               <div className={`w-6 h-6 rounded-full bg-white shadow-sm transition-transform ${appSettings.enableSfx ? 'translate-x-6' : ''}`} />
             </button>
@@ -687,7 +617,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-6">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-6 relative overflow-hidden">
           <h3 className="font-bold text-lg text-gray-800 mb-3 text-center">{getUiLabel('contactUs')}</h3>
           <p className="text-sm text-gray-500 mb-6 text-center">{getUiLabel('contactDesc')}</p>
           
@@ -708,6 +638,14 @@ export default function App() {
               tinyurl.com/t4rxxrau <i className="fa-solid fa-arrow-up-right-from-square ml-1 text-xs"></i>
             </a>
           </div>
+
+          {/* HIDDEN ADMIN BUTTON */}
+          <button 
+            onClick={() => setView('ADMIN')}
+            className="absolute bottom-2 right-2 text-gray-200 hover:text-gray-400 transition-colors"
+          >
+            <i className="fa-solid fa-user-shield"></i>
+          </button>
         </div>
       </div>
     );
@@ -735,6 +673,7 @@ export default function App() {
   };
 
   if (view === 'ONBOARDING') return renderOnboarding();
+  if (view === 'ADMIN') return <AdminPanel onBack={() => setView('SETTINGS')} />;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 relative">
@@ -750,7 +689,6 @@ export default function App() {
           <button 
             onClick={() => setView('SEARCH')} 
             className="w-10 h-10 bg-white rounded-full shadow-sm flex items-center justify-center text-gray-600"
-            aria-label="Back to search"
           >
             <i className="fa-solid fa-arrow-left"></i>
           </button>
@@ -794,32 +732,29 @@ export default function App() {
         {view === 'SETTINGS' && renderSettings()}
       </main>
 
+      {/* Navigation Bar */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-[360px] md:max-w-lg bg-white rounded-full shadow-2xl border border-gray-100 p-2 flex justify-around items-center z-50 transition-all duration-300">
         <button 
           onClick={() => setView('SEARCH')}
           className={`p-3 rounded-full transition-colors ${view === 'SEARCH' || view === 'RESULT' ? 'bg-pop-yellow text-pop-dark' : 'text-gray-400 hover:bg-gray-50'}`}
-          aria-label="Search"
         >
           <i className="fa-solid fa-magnifying-glass text-xl"></i>
         </button>
         <button 
           onClick={() => setView('NOTEBOOK')}
           className={`p-3 rounded-full transition-colors ${view === 'NOTEBOOK' ? 'bg-pop-purple text-white' : 'text-gray-400 hover:bg-gray-50'}`}
-          aria-label="Notebook"
         >
           <i className="fa-solid fa-book text-xl"></i>
         </button>
         <button 
           onClick={() => setView('FLASHCARDS')}
           className={`p-3 rounded-full transition-colors ${view === 'FLASHCARDS' ? 'bg-pop-teal text-white' : 'text-gray-400 hover:bg-gray-50'}`}
-          aria-label="Flashcards"
         >
           <i className="fa-solid fa-layer-group text-xl"></i>
         </button>
         <button 
           onClick={() => setView('SETTINGS')}
           className={`p-3 rounded-full transition-colors ${view === 'SETTINGS' ? 'bg-pop-pink text-white' : 'text-gray-400 hover:bg-gray-50'}`}
-          aria-label="Settings"
         >
           <i className="fa-solid fa-gear text-xl"></i>
         </button>
