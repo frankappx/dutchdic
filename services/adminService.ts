@@ -73,7 +73,7 @@ export const processBatch = async (
         
         Strictly return JSON:
         {
-          "definition": "Definition strictly in ${targetLangName}",
+          "definition": "Definition strictly in ${targetLangName}. Keep it SHORT (Max 15 words).",
           "partOfSpeech": "zn. / ww. / bn.",
           "grammar_data": { 
              "plural": "huizen (if noun, in Dutch)", 
@@ -96,7 +96,7 @@ export const processBatch = async (
         contents: prompt,
         config: {
           responseMimeType: "application/json",
-          maxOutputTokens: 2000, 
+          maxOutputTokens: 8192, // Increased from 2000 to prevent cutoff
           responseSchema: {
             type: Type.OBJECT,
             properties: {

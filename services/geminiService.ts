@@ -241,7 +241,7 @@ export const generateDefinition = async (
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_BASE,
         responseMimeType: "application/json",
-        maxOutputTokens: 2000, // Limit to prevent massive/truncated responses
+        maxOutputTokens: 8192, // Increased from 2000 to prevent massive/truncated responses
         responseSchema: {
           type: Type.OBJECT,
           properties: {
