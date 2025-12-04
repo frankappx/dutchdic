@@ -122,8 +122,7 @@ export default function App() {
 
   // Network Listener
   useEffect(() => {
-    // Force Git Change Detection: Deployment v2.5 (Lang Detection+)
-    console.log("LingoPop: Loaded v2.5 (Lang Detection+)");
+    console.log("LingoPop: Loaded v2.6 (DB Integrated)");
 
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -276,8 +275,7 @@ export default function App() {
     setSearchTerm(termToSearch); 
     setView('SEARCH'); // Show loading state
     
-    // NOTE: generateDefinition now returns null if it fails (quota exceeded)
-    // We check for null and show the custom modal
+    // NOTE: generateDefinition now checks Database first!
     const defData = await generateDefinition(termToSearch, sourceLang, targetLang);
     
     // CHECK FOR NON-DUTCH WORD (Updated with Localized Error)
@@ -322,19 +320,17 @@ export default function App() {
     setIsLoading(false);
     setSearchTerm('');
 
-    // Fetch image in background (only if image generation is enabled AND we didn't hit quota on definition)
-    // Also skip if offline (though we checked earlier, network state might change)
+    // Fetch image in background ONLY if not already provided by Database
     const isQuotaError = defData.definition.includes("(Service Busy)");
+    const hasDbImage = !!defData.imageUrl;
+    
     // FORCE ENABLE IMAGES
-    if (!isQuotaError && navigator.onLine) {
-      // CHANGE: Use the first example sentence as context if available, otherwise fallback to definition
+    if (!isQuotaError && !hasDbImage && navigator.onLine) {
       const visualContext = (defData.examples && defData.examples[0] && defData.examples[0].target)
         ? defData.examples[0].target
         : defData.definition;
 
-      // UPDATED: Handle new return signature { data, error }
       generateVisualization(termToSearch, visualContext, appSettings.imageStyle, 'target', targetLang).then(async result => {
-        // Whether success or error, update the state so UI shows the image OR the error box
         setCurrentEntry(prev => {
           if (prev && prev.term === termToSearch) {
              return { 
@@ -413,23 +409,17 @@ export default function App() {
   // Common Logo Component: Intelligent Image with Emoji Fallback
   const renderLogo = (isSmall = false) => (
     <div className="mb-1 flex justify-center items-center select-none">
-       {/* 
-          Using absolute path '/logo.png' to correctly resolve from the public directory.
-          If image fails (404), fallback logic handles it.
-       */}
        <img 
          src="/logo.png" 
          alt="LingoPop"
          className={`${isSmall ? 'h-20' : 'h-32 md:h-40'} w-auto object-contain hover:scale-105 transition-transform duration-300`}
          onError={(e) => {
-           // If image fails to load (not found), hide it and show emojis
            e.currentTarget.style.display = 'none';
            document.getElementById('fallback-logo-emojis')!.classList.remove('hidden');
            document.getElementById('fallback-logo-emojis')!.classList.add('flex');
          }}
        />
 
-       {/* Fallback Emojis (Hidden by default, shows if logo.png is missing) */}
        <div id="fallback-logo-emojis" className="hidden justify-center items-end gap-1">
           <span className="text-5xl">🌷</span>
           <span className="text-5xl">🌾</span>
@@ -445,7 +435,6 @@ export default function App() {
     <div className="flex flex-col min-h-screen p-4 justify-center max-w-md mx-auto">
       <div className="text-center mb-4">
         {renderLogo(true)}
-        {/* Dynamic Title based on selected language */}
         <h1 className="text-xl font-black text-pop-dark mb-1 leading-tight">{getUiLabel('greeting')}</h1>
         <p className="text-xs text-gray-400">
           Modern Dutch Dictionary
@@ -480,14 +469,11 @@ export default function App() {
           onChange={(e) => setSearchTerm(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           placeholder={searchUiData.searchPlaceholder}
-          // UPDATED: Input text remains 16px (text-base) to stop iOS zoom. 
-          // Placeholder text is reduced on mobile (text-[11px]) to fit long hints.
           className="w-full bg-white border-2 border-gray-100 rounded-3xl py-4 pl-5 pr-12 md:p-5 md:pl-6 md:pr-14 text-base md:text-lg shadow-sm focus:outline-none focus:border-pop-purple transition-all placeholder:text-gray-400 placeholder:text-[11px] md:placeholder:text-base placeholder:text-ellipsis"
         />
         <button 
           onClick={() => handleSearch()}
           disabled={isLoading}
-          // UPDATED: Adjusted button size/pos for mobile
           className="absolute right-3 top-2 md:top-3 w-9 h-9 md:w-10 md:h-10 bg-pop-yellow rounded-full flex items-center justify-center text-pop-dark shadow-sm hover:scale-105 transition-transform"
           aria-label="Search"
         >
@@ -541,20 +527,18 @@ export default function App() {
           </div>
         ) : (
           <>
-            {/* List layout ensuring full width */}
             <div className="flex flex-col gap-3 mb-8">
               {paginatedItems.map(item => (
                 <div key={item.id} onClick={() => { setCurrentEntry(item); setView('RESULT'); }} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex justify-between items-center cursor-pointer hover:border-pop-purple transition-colors h-full w-full">
                   <div className="flex gap-4 items-center overflow-hidden w-full">
                      {item.imageUrl ? (
-                       <img src={`data:image/png;base64,${item.imageUrl}`} className="w-12 h-12 rounded-lg object-cover bg-gray-100 shrink-0" alt="" />
+                       <img src={item.imageUrl.startsWith('http') ? item.imageUrl : `data:image/png;base64,${item.imageUrl}`} className="w-12 h-12 rounded-lg object-cover bg-gray-100 shrink-0" alt="" />
                      ) : (
                        <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 text-gray-300">
                          <i className="fa-solid fa-image"></i>
                        </div>
                      )}
                     <div className="min-w-0 flex-1">
-                      {/* Display term in lowercase to match dictionary list style for common nouns */}
                       <h3 className="font-bold text-lg truncate">{item.term.toLowerCase()}</h3>
                       <p className="text-xs text-gray-400 whitespace-normal line-clamp-2">{item.definition}</p>
                     </div>
@@ -566,7 +550,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* Pagination Controls */}
             {totalPages > 1 && (
               <div className="flex justify-center items-center gap-4 mt-6">
                 <button 
@@ -597,14 +580,11 @@ export default function App() {
   };
 
   const renderFlashcards = () => {
-    // Determine current item safely
     const hasItems = savedItems.length > 0;
     const currentItem = hasItems ? savedItems[flashcardIndex % savedItems.length] : null;
 
-    // Adjusted vertical spacing for desktop: pt-4 and max-h constraint
     return (
       <div className="pb-24 px-4 max-w-md md:max-w-4xl mx-auto pt-4 flex flex-col h-screen max-h-[750px]">
-        {/* Reduced bottom margin from mb-6 to mb-2 to save space */}
         <h2 className="text-3xl font-black text-pop-dark mb-2 text-center">{getUiLabel('studyMode')}</h2>
         {!hasItems ? (
            <div className="text-center py-20 opacity-50">
@@ -627,7 +607,6 @@ export default function App() {
                   />
                 )}
                 
-                {/* Reduced top margin to mt-3 to keep button close to card */}
                 <div className="text-center mt-3 flex justify-center items-center gap-4">
                   <span className="text-gray-400 text-xs font-bold tracking-widest">
                     {(flashcardIndex % savedItems.length) + 1} / {savedItems.length}
@@ -653,7 +632,6 @@ export default function App() {
       <div className="pb-24 px-4 max-w-md md:max-w-4xl mx-auto pt-6">
         <h2 className="text-3xl font-black text-pop-dark mb-6">{getUiLabel('settings')}</h2>
         
-        {/* Mother Tongue Setting */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
           <h3 className="font-bold text-lg text-gray-800 mb-4">{getUiLabel('motherTongue')}</h3>
           <div className="relative">
@@ -676,7 +654,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Enable Sound Effects Setting */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-lg text-gray-800">{getUiLabel('enableSfx')}</h3>
@@ -690,7 +667,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Image Style Setting */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
           <h3 className="font-bold text-lg text-gray-800 mb-4">{getUiLabel('imageStyle')}</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -711,7 +687,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* Contact Section */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mt-6">
           <h3 className="font-bold text-lg text-gray-800 mb-3 text-center">{getUiLabel('contactUs')}</h3>
           <p className="text-sm text-gray-500 mb-6 text-center">{getUiLabel('contactDesc')}</p>
@@ -759,13 +734,10 @@ export default function App() {
     );
   };
 
-  // --- Main Layout ---
-
   if (view === 'ONBOARDING') return renderOnboarding();
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 relative">
-      {/* Global Offline Banner (Sticky) */}
       {!isOnline && (
         <div className="sticky top-0 z-[60] bg-orange-500 text-white text-center text-sm py-2 px-4 font-bold shadow-md animate-fade-in">
            <i className="fa-solid fa-wifi-slash mr-2"></i>
@@ -773,7 +745,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Top Bar for Results to go back */}
       {view === 'RESULT' && (
         <div className={`px-4 py-4 sticky ${!isOnline ? 'top-[36px]' : 'top-0'} bg-gray-50/90 backdrop-blur-sm z-10 max-w-md md:max-w-4xl mx-auto flex items-center transition-all duration-300`}>
           <button 
@@ -823,7 +794,6 @@ export default function App() {
         {view === 'SETTINGS' && renderSettings()}
       </main>
 
-      {/* Bottom Navigation */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-[360px] md:max-w-lg bg-white rounded-full shadow-2xl border border-gray-100 p-2 flex justify-around items-center z-50 transition-all duration-300">
         <button 
           onClick={() => setView('SEARCH')}

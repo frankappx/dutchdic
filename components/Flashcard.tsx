@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { DictionaryEntry } from '../types';
 import { playTTS, playFlipSound } from '../services/geminiService';
@@ -52,7 +53,7 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
             <div className="w-full aspect-video flex items-center justify-center mb-4 overflow-hidden relative rounded-2xl bg-gray-50 group-hover:shadow-inner transition-shadow shadow-sm">
                {entry.imageUrl ? (
                   <img 
-                    src={`data:image/png;base64,${entry.imageUrl}`} 
+                    src={entry.imageUrl.startsWith('http') ? entry.imageUrl : `data:image/png;base64,${entry.imageUrl}`}
                     alt={entry.term} 
                     className="absolute inset-0 w-full h-full object-cover"
                   />

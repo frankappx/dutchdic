@@ -18,6 +18,7 @@ export enum SupportedLanguage {
 export interface ExampleSentence {
   target: string;
   source: string;
+  audioUrl?: string; // NEW: DB-provided audio URL
 }
 
 export interface GrammarDetails {

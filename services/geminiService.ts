@@ -2,6 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
+import { supabase } from "./supabaseClient";
 
 // Initialize Gemini Client
 // Robustly retrieve API Key from various environment locations
@@ -183,12 +184,52 @@ export const playErrorSound = async () => {
 
 // --- API Methods ---
 
+// UPDATED: Now returns 'imageUrl' if available in DB
 export const generateDefinition = async (
   term: string, 
   sourceLang: string, 
-  targetLang: string
-): Promise<Omit<DictionaryEntry, 'id' | 'timestamp' | 'imageUrl'> | null> => {
+  targetLang: string,
+  preferredStyle: string = 'ghibli'
+): Promise<Omit<DictionaryEntry, 'id' | 'timestamp'> | null> => {
   
+  // 1. SUPABASE CACHE LOOKUP (Via RPC)
+  if (supabase) {
+    try {
+      // Use the new 'get_word_details' RPC function which handles 
+      // case-insensitive matching (citext) and efficient querying
+      const { data, error } = await supabase
+        .rpc('get_word_details', { 
+          search_term: term, // 'citext' in DB handles the casing logic
+          target_lang: getLangCode(sourceLang)
+        })
+        .maybeSingle();
+
+      if (data && !error) {
+        console.log("⚡️ Cache Hit: Loaded from Database (RPC)", data);
+        
+        // Map DB View fields (snake_case) to Frontend Type fields (camelCase)
+        const styles = data.images_by_style || {};
+        // Try preferred style first, then ghibli, then first available
+        const dbImageUrl = styles[preferredStyle] || styles['ghibli'] || Object.values(styles)[0] || undefined;
+
+        return {
+          term: data.term,
+          definition: data.definition,
+          examples: data.examples || [],
+          usageNote: data.usage_note, // Map usage_note -> usageNote
+          grammar: data.grammar_data, // Map grammar_data -> grammar
+          imageUrl: dbImageUrl 
+        };
+      } else if (error) {
+        // Log RPC errors but don't crash app
+        console.warn("Supabase RPC error:", error);
+      }
+    } catch (dbError) {
+      console.warn("Supabase lookup failed, falling back to Gemini", dbError);
+    }
+  }
+
+  // 2. GEMINI FALLBACK
   try {
     // Check for Monolingual Mode (e.g., Dutch -> Dutch)
     const isMonolingual = sourceLang === targetLang;
@@ -203,9 +244,10 @@ export const generateDefinition = async (
       Target Language (Learning): ${targetLang}. 
       Source Language (Native): ${sourceLang}.
 
-      STRICT INSTRUCTION: All output fields (definition, usageNote, example translations) MUST be written in ${sourceLang}. 
-      If ${sourceLang} is Chinese, use simplified Chinese.
-      Do NOT use English unless ${sourceLang} is explicitly English.
+      INSTRUCTIONS FOR LANGUAGES:
+      1. DEFINITION and USAGE NOTE must be written in ${sourceLang}. (If ${sourceLang} is Chinese, use simplified Chinese).
+      2. SYNONYMS, ANTONYMS, PLURALS, and VERB FORMS must be in the TARGET LANGUAGE (${targetLang}) and NOT translated.
+      3. Do NOT use English unless ${sourceLang} is explicitly English.
 
       STRICT VALIDATION:
       1. Check if "${term}" is a valid Dutch word, phrase, or common loanword used in Dutch.
@@ -220,13 +262,13 @@ export const generateDefinition = async (
          - IMPORTANT: Ensure examples are original.
       3. usageNote: A casual, fun "friend-to-friend" usage note STRICTLY in ${sourceLang}.
       4. grammar: An object containing detailed grammatical data:
-         - partOfSpeech: The abbreviation. IF DUTCH: use 'zn.' (noun), 'ww.' (verb), 'bn.' (adj), 'bw.' (adv), 'vz.' (prep), 'voegw.' (conj), 'vnw.' (pronoun). For other languages use standard abbreviations.
-         - article: If noun, the article (e.g., 'de', 'het', 'el', 'la').
-         - plural: If noun, the plural form.
-         - verbForms: If verb, the conjugation steps. IF DUTCH: "Past Singular - Past Plural - Participle" (e.g. "liep - gelopen").
-         - adjectiveForms: If adjective, "Original - Comparative - Superlative" (e.g. "mooi - mooier - mooist").
-         - synonyms: Array of strings.
-         - antonyms: Array of strings.
+         - partOfSpeech: The abbreviation in ${targetLang} (e.g. 'zn.', 'ww.', 'bn.').
+         - article: If noun, the article in ${targetLang} (e.g. 'de', 'het').
+         - plural: If noun, the plural form in ${targetLang}.
+         - verbForms: If verb, the conjugation in ${targetLang} (e.g. "liep - gelopen").
+         - adjectiveForms: If adjective, degrees in ${targetLang} (e.g. "mooi - mooier - mooist").
+         - synonyms: Array of strings STRICTLY in ${targetLang}.
+         - antonyms: Array of strings STRICTLY in ${targetLang}.
     `;
 
     // Helper to call API
@@ -272,14 +314,12 @@ export const generateDefinition = async (
 
     let response;
     // HYBRID STRATEGY: Use Flash for Text (Low Latency)
-    // Pro is too slow for simple dictionary definitions.
     console.log("Using text model: gemini-2.5-flash");
     response = await fetchDefinition("gemini-2.5-flash");
 
     let text = response.text || "";
     
     // ROBUSTNESS FIX: Remove Markdown code blocks if present
-    // Gemini sometimes returns ```json { ... } ``` even when responseMimeType is set
     text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
 
     return JSON.parse(text);
@@ -323,7 +363,6 @@ const cleanErrorMessage = (error: any): string => {
     return "Image Model Not Found (404).";
   }
   
-  // Truncate long JSON errors
   return "Image generation failed.";
 };
 
@@ -335,6 +374,10 @@ export const generateVisualization = async (
   imageContext: ImageContext = 'target',
   targetLang: string = 'the target language culture'
 ): Promise<{ data: string | null; error: string | null }> => {
+  
+  // OPTIONAL: We could also check DB for existing image here if we passed the word ID, 
+  // but generateDefinition already does that efficiently via the View.
+
   const stylePrompts: Record<string, string> = {
     cartoon: 'fun, energetic cartoon style',
     ghibli: 'Studio Ghibli anime style, detailed backgrounds, soft colors',
@@ -454,4 +497,23 @@ export const playTTS = async (text: string): Promise<void> => {
     globalAudioCache[text] = data; // Cache it
     await playAudio(data);
   }
+};
+
+// Helper: Map Display Language Names to ISO codes for DB Lookup
+const getLangCode = (name: string): string => {
+  // Simple mapping based on your constants.ts
+  if (name.includes("English")) return "en";
+  if (name.includes("Chinese")) return "zh";
+  if (name.includes("Spanish")) return "es";
+  if (name.includes("French")) return "fr";
+  if (name.includes("German")) return "de";
+  if (name.includes("Japanese")) return "ja";
+  if (name.includes("Korean")) return "ko";
+  if (name.includes("Portuguese")) return "pt";
+  if (name.includes("Russian")) return "ru";
+  if (name.includes("Arabic")) return "ar";
+  if (name.includes("Dutch")) return "nl";
+  if (name.includes("Ukrainian")) return "uk";
+  if (name.includes("Polish")) return "pl";
+  return "en";
 };

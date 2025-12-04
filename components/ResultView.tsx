@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry } from '../types';
 import { playTTS, initAudio, playSuccessSound, playErrorSound } from '../services/geminiService';
@@ -305,7 +306,11 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
         {entry.imageUrl ? (
           <div className="-mx-6 mb-6 overflow-hidden shadow-sm border-t border-b border-gray-100">
             {/* CHANGED: Use aspect-[2/1] for 2:1 ratio as requested, with object-cover to crop the 16:9 source */}
-            <img src={`data:image/png;base64,${entry.imageUrl}`} alt={entry.term} className="w-full h-auto aspect-[2/1] object-cover transition-all" />
+            <img 
+               src={entry.imageUrl.startsWith('http') ? entry.imageUrl : `data:image/png;base64,${entry.imageUrl}`} 
+               alt={entry.term} 
+               className="w-full h-auto aspect-[2/1] object-cover transition-all" 
+            />
           </div>
         ) : entry.imageError ? (
           <div className="mb-6 mx-auto max-w-sm p-4 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-center gap-3 text-gray-400">
