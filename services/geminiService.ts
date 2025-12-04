@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
@@ -224,7 +223,7 @@ export const generateDefinition = async (
          - 'target': The sentence in the Target Language (${targetLang}).
          - 'source': ${exampleInstruction}
          - IMPORTANT: Ensure examples are original.
-      3. usageNote: A casual, fun "friend-to-friend" usage note STRICTLY in ${sourceLang}.
+      3. usageNote: A casual, fun "friend-to-friend" usage note STRICTLY in ${sourceLang}. KEEP IT SHORT (Max 30 words).
       4. grammar: An object containing detailed grammatical data:
          - partOfSpeech: The abbreviation in ${targetLang} (e.g. 'zn.', 'ww.', 'bn.').
          - article: If noun, the article in ${targetLang} (e.g. 'de', 'het').

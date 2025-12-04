@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -78,7 +77,7 @@ export const processBatch = async (
              "synonyms": ["Dutch word 1", "Dutch word 2"],
              "antonyms": ["Dutch word 1"]
           },
-          "usageNote": "Fun tip strictly in ${targetLangName}",
+          "usageNote": "Fun tip strictly in ${targetLangName}. KEEP IT SHORT (Max 20 words).",
           "examples": [
             { "dutch": "Dutch sentence 1", "translation": "Translation in ${targetLangName}" },
             { "dutch": "Dutch sentence 2", "translation": "Translation in ${targetLangName}" }
