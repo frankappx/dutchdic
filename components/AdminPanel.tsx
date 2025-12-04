@@ -26,7 +26,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [tasks, setTasks] = useState({
     text: true,
     image: true,
-    audio: true
+    audioWord: true,
+    audioEx1: true,
+    audioEx2: true
   });
   const [selectedStyle, setSelectedStyle] = useState<ImageStyle>('ghibli');
 
@@ -71,8 +73,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       alert("Please enter at least one word");
       return;
     }
-    if (!tasks.text && !tasks.image && !tasks.audio) {
-      alert("Please select at least one task (Text, Image, or Audio).");
+    
+    // Check if any task is selected
+    const anyAudio = tasks.audioWord || tasks.audioEx1 || tasks.audioEx2;
+    if (!tasks.text && !tasks.image && !anyAudio) {
+      alert("Please select at least one task.");
       return;
     }
 
@@ -208,18 +213,42 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                   )}
                 </div>
 
-                <label className="flex items-center p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                  <input 
-                    type="checkbox" 
-                    checked={tasks.audio} 
-                    onChange={e => setTasks(p => ({...p, audio: e.target.checked}))}
-                    className="w-5 h-5 text-pop-purple rounded focus:ring-pop-purple mr-3"
-                  />
-                  <div>
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                  <div className="mb-2">
                     <span className="font-bold text-gray-700 block">C. Audio (TTS)</span>
-                    <span className="text-xs text-gray-400">Word & Examples Only (Gemini 2.5 Flash TTS)</span>
+                    <span className="text-xs text-gray-400">Select which parts to generate:</span>
                   </div>
-                </label>
+                  
+                  <div className="pl-2 space-y-2">
+                     <label className="flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={tasks.audioWord} 
+                          onChange={e => setTasks(p => ({...p, audioWord: e.target.checked}))}
+                          className="w-4 h-4 text-pop-teal rounded focus:ring-pop-teal mr-2"
+                        />
+                        <span className="text-sm text-gray-600">Word Pronunciation</span>
+                     </label>
+                     <label className="flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={tasks.audioEx1} 
+                          onChange={e => setTasks(p => ({...p, audioEx1: e.target.checked}))}
+                          className="w-4 h-4 text-pop-teal rounded focus:ring-pop-teal mr-2"
+                        />
+                        <span className="text-sm text-gray-600">Example 1</span>
+                     </label>
+                     <label className="flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={tasks.audioEx2} 
+                          onChange={e => setTasks(p => ({...p, audioEx2: e.target.checked}))}
+                          className="w-4 h-4 text-pop-teal rounded focus:ring-pop-teal mr-2"
+                        />
+                        <span className="text-sm text-gray-600">Example 2</span>
+                     </label>
+                  </div>
+                </div>
               </div>
             </div>
 

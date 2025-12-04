@@ -153,16 +153,20 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                <button 
                 // Pass entry.audioUrl here
                 onClick={() => handleAudio(entry.term, 'term', entry.audioUrl)}
-                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold shadow-sm active:scale-95 transition-transform 
-                  ${entry.audioUrl ? 'bg-pop-teal text-white' : 'bg-pop-yellow text-pop-dark'}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold active:scale-95 transition-all
+                  ${entry.audioUrl 
+                     ? 'bg-pop-teal text-white shadow-sm' // Saved (Solid)
+                     : 'bg-white text-pop-dark border-2 border-pop-yellow hover:bg-yellow-50' // API (Outline/Hollow)
+                  }
                 `}
-                title={entry.audioUrl ? "Plays stored audio (Offline ready)" : "Generates audio from AI"}
+                title={entry.audioUrl ? "Plays stored audio" : "Generates audio from AI"}
                >
                  {loadingAudio === 'term' ? (
                    <i className="fa-solid fa-spinner fa-spin"></i>
                  ) : (
-                   // Filled icon for saved audio, Normal icon for generated
-                   <i className={`fa-solid fa-volume-high`}></i> 
+                   entry.audioUrl 
+                     ? <i className="fa-solid fa-volume-high"></i> // Solid Icon
+                     : <i className="fa-solid fa-wifi text-pop-yellow"></i> // Signal Icon (Online)
                  )}
                  {labels.pronounce}
                </button>
@@ -300,15 +304,20 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                 <button 
                   // Pass example audioUrl here
                   onClick={() => handleAudio(ex.target, `ex-${idx}`, ex.audioUrl)} 
-                  className={`w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-transform shrink-0 ml-2
-                    ${ex.audioUrl ? 'bg-pop-teal text-white' : 'bg-white text-pop-purple'}
+                  className={`w-8 h-8 flex items-center justify-center rounded-full shrink-0 ml-2 transition-transform hover:scale-110
+                    ${ex.audioUrl 
+                       ? 'bg-pop-teal text-white shadow-sm' 
+                       : 'bg-white text-pop-purple border border-pop-purple'
+                    }
                   `}
                   aria-label="Listen to example"
                 >
                   {loadingAudio === `ex-${idx}` ? (
                     <i className="fa-solid fa-spinner fa-spin text-xs"></i>
                   ) : (
-                    <i className="fa-solid fa-volume-high text-xs"></i>
+                    ex.audioUrl 
+                      ? <i className="fa-solid fa-volume-high text-xs"></i>
+                      : <i className="fa-solid fa-wifi text-[10px]"></i>
                   )}
                 </button>
               </div>
@@ -332,7 +341,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                {loadingAudio === 'tip' ? (
                   <i className="fa-solid fa-spinner fa-spin text-xs"></i>
                ) : (
-                  <i className="fa-solid fa-volume-high text-xs"></i>
+                  <i className="fa-solid fa-wifi text-[10px]"></i>
                )}
             </button>
           </div>

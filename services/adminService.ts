@@ -11,7 +11,9 @@ export interface BatchConfig {
   tasks: {
     text: boolean;
     image: boolean;
-    audio: boolean;
+    audioWord: boolean;
+    audioEx1: boolean;
+    audioEx2: boolean;
   };
   imageStyle: ImageStyle;
 }
@@ -96,9 +98,14 @@ export const processBatch = async (
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const ai = new GoogleGenAI({ apiKey });
   const targetLangName = getLanguageName(targetLangCode);
+  
+  const audioTasks = [];
+  if (config.tasks.audioWord) audioTasks.push("Word");
+  if (config.tasks.audioEx1) audioTasks.push("Ex1");
+  if (config.tasks.audioEx2) audioTasks.push("Ex2");
 
   onLog(`🌍 Output Language: ${targetLangName} (${targetLangCode})`);
-  onLog(`⚙️ Tasks: ${config.tasks.text ? '[Text] ' : ''}${config.tasks.image ? '[Image: '+config.imageStyle+'] ' : ''}${config.tasks.audio ? '[Audio] ' : ''}`);
+  onLog(`⚙️ Tasks: ${config.tasks.text ? '[Text] ' : ''}${config.tasks.image ? '[Image: '+config.imageStyle+'] ' : ''}${audioTasks.length > 0 ? '[Audio: '+audioTasks.join(',')+']' : ''}`);
 
   for (let i = 0; i < words.length; i++) {
     const term = words[i].trim();
@@ -182,7 +189,6 @@ export const processBatch = async (
         } catch (e) { throw new Error("JSON Parse failed"); }
 
         // Save Word Base
-        // Note: We do NOT clear pronunciation_audio_url here because the word term hasn't changed.
         const { data: wordRow, error: wordErr } = await supabase
           .from('words')
           .upsert({ 
@@ -208,8 +214,7 @@ export const processBatch = async (
         if (wordData.examples) {
           let idx = 0;
           for (const ex of wordData.examples) {
-            // CRITICAL: When updating text, we MUST clear the old audio_url for examples
-            // because the new sentence likely differs from the old one.
+            // CRITICAL: Clear old audio_url for examples when text regenerates
             await supabase.from('examples').upsert({
               word_id: wordId,
               language_code: targetLangCode,
@@ -225,7 +230,9 @@ export const processBatch = async (
       }
 
       // --- LOOKUP LOGIC: FETCH EXISTING WORD IF TEXT TASK IS SKIPPED ---
-      if (!wordId && (config.tasks.image || config.tasks.audio)) {
+      const hasAudioTask = config.tasks.audioWord || config.tasks.audioEx1 || config.tasks.audioEx2;
+      
+      if (!wordId && (config.tasks.image || hasAudioTask)) {
          onLog(`🔍 Checking database for existing word: "${term}"...`);
          
          const { data: existWord } = await supabase
@@ -249,7 +256,8 @@ export const processBatch = async (
               .from('examples')
               .select('dutch_sentence, sentence_index')
               .eq('word_id', wordId)
-              .eq('language_code', targetLangCode); 
+              .eq('language_code', targetLangCode)
+              .order('sentence_index', { ascending: true });
             
             // Reconstruct a minimal wordData object
             wordData = { 
@@ -326,8 +334,8 @@ export const processBatch = async (
       }
 
       // --- PHASE C: AUDIO GENERATION ---
-      if (config.tasks.audio && wordId) {
-        onLog(`🗣️ Generating Audio (Word & Examples Only)...`);
+      if (hasAudioTask && wordId) {
+        onLog(`🗣️ Processing Audio Requests...`);
         
         const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
            try {
@@ -358,30 +366,32 @@ export const processBatch = async (
         };
 
         // 1. Word Audio
-        const wordAudioUrl = await generateAndUploadTTS(term, 'audio/words');
-        if (wordAudioUrl) {
-           await supabase.from('words').update({ pronunciation_audio_url: wordAudioUrl }).eq('id', wordId);
-           onLog(`   -> Word audio saved.`);
+        if (config.tasks.audioWord) {
+            const wordAudioUrl = await generateAndUploadTTS(term, 'audio/words');
+            if (wordAudioUrl) {
+               await supabase.from('words').update({ pronunciation_audio_url: wordAudioUrl }).eq('id', wordId);
+               onLog(`   -> [Word] Audio saved.`);
+            }
         }
 
-        // 2. Example Audio (Skip Usage Note)
+        // 2. Examples Audio
         if (wordData.examples) {
            let idx = 0;
            for (const ex of wordData.examples) {
-              await sleep(1000); // Rate limit buffer
-              
-              const sentence = ex.dutch;
-              // Safe fallback for index if we fetched from DB (where it might be stored) vs generated
               const sIndex = (ex as any).index !== undefined ? (ex as any).index : idx;
               
-              if (sentence) {
-                 const exUrl = await generateAndUploadTTS(sentence, 'audio/examples');
+              // Determine if we should generate for this index
+              const shouldGen = (sIndex === 0 && config.tasks.audioEx1) || (sIndex === 1 && config.tasks.audioEx2);
+
+              if (shouldGen && ex.dutch) {
+                 await sleep(500); // Small buffer
+                 const exUrl = await generateAndUploadTTS(ex.dutch, 'audio/examples');
                  if (exUrl) {
                     await supabase.from('examples').update({ audio_url: exUrl })
                       .eq('word_id', wordId)
                       .eq('language_code', targetLangCode)
                       .eq('sentence_index', sIndex);
-                    onLog(`   -> Example ${sIndex + 1} audio saved.`);
+                    onLog(`   -> [Example ${sIndex + 1}] Audio saved.`);
                  }
               }
               idx++;
