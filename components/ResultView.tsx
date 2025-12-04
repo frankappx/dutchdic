@@ -285,9 +285,11 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
             />
           </div>
         ) : entry.imageError ? (
-          <div className="mb-6 mx-auto max-w-sm p-4 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-center gap-3 text-gray-400">
-             <i className="fa-regular fa-image text-xl"></i>
-             <span className="text-xs font-medium">{entry.imageError}</span>
+          <div className="mb-6 mx-auto max-w-sm p-8 rounded-xl bg-gray-50 border border-gray-100 border-dashed flex flex-col items-center justify-center text-center gap-3 text-gray-400">
+             <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-gray-400 mb-1">
+               <i className="fa-regular fa-images text-xl"></i>
+             </div>
+             <span className="text-sm font-medium text-gray-500">Sorry, no image in this style yet.</span>
           </div>
         ) : null}
 
@@ -329,21 +331,10 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
         </div>
 
         <div className="bg-pop-teal/10 p-5 rounded-2xl border border-pop-teal/20">
-          <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center mb-2">
             <h3 className="text-pop-teal font-bold text-sm uppercase tracking-wider">
               <i className="fa-solid fa-lightbulb mr-2"></i> {labels.quickTip}
             </h3>
-            <button 
-              onClick={() => handleAudio(entry.usageNote, 'tip')}
-              className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-pop-purple shadow-sm hover:scale-110 transition-transform"
-              aria-label="Listen to tip"
-            >
-               {loadingAudio === 'tip' ? (
-                  <i className="fa-solid fa-spinner fa-spin text-xs"></i>
-               ) : (
-                  <i className="fa-solid fa-wifi text-[10px]"></i>
-               )}
-            </button>
           </div>
           <p className="text-pop-dark/80 text-sm leading-relaxed">{entry.usageNote}</p>
         </div>

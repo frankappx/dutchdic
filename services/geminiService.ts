@@ -169,7 +169,9 @@ export const generateDefinition = async (
         console.log("⚡️ Cache Hit: Loaded from Database (RPC)", data);
         
         const styles = data.images_by_style || {};
-        const dbImageUrl = styles[preferredStyle] || styles['ghibli'] || Object.values(styles)[0] || undefined;
+        // STRICT STYLE CHECK: Only return the image if it matches the preferred style.
+        // Do NOT fallback to 'ghibli' or random styles.
+        const dbImageUrl = styles[preferredStyle] || undefined;
         
         // Robustly map Examples: handle 'target'/'source' AND 'dutch_sentence'/'translation'
         const mappedExamples = (data.examples || []).map((ex: any) => ({
