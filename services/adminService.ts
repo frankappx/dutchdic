@@ -1,15 +1,25 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type } from "@google/genai";
+import { ImageStyle } from '../types';
 
 // Configuration for rate limiting
-const DELAY_BETWEEN_WORDS_MS = 10000; // Reduced to 10s as Flash is faster, but kept safe for Image model
+const DELAY_BETWEEN_WORDS_MS = 3000; 
 const STORAGE_BUCKET = 'dictionary-assets';
+
+export interface BatchConfig {
+  tasks: {
+    text: boolean;
+    image: boolean;
+    audio: boolean;
+  };
+  imageStyle: ImageStyle;
+}
 
 // Helper: Pause execution
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-// Helper: Create WAV Header for Raw PCM Data
+// Helper: Create WAV Header
 const createWavFile = (pcmData: Uint8Array): Blob => {
   const numChannels = 1;
   const sampleRate = 24000;
@@ -75,6 +85,7 @@ export const processBatch = async (
   apiKey: string,
   supabaseUrl: string,
   targetLangCode: string,
+  config: BatchConfig,
   onLog: (msg: string) => void
 ) => {
   if (!serviceRoleKey || !supabaseUrl || !apiKey) {
@@ -86,9 +97,8 @@ export const processBatch = async (
   const ai = new GoogleGenAI({ apiKey });
   const targetLangName = getLanguageName(targetLangCode);
 
-  onLog(`🚀 Starting batch process for ${words.length} words...`);
   onLog(`🌍 Output Language: ${targetLangName} (${targetLangCode})`);
-  onLog(`⏱️ Speed limit: 1 word every ${DELAY_BETWEEN_WORDS_MS/1000}s.`);
+  onLog(`⚙️ Tasks: ${config.tasks.text ? '[Text] ' : ''}${config.tasks.image ? '[Image: '+config.imageStyle+'] ' : ''}${config.tasks.audio ? '[Audio] ' : ''}`);
 
   for (let i = 0; i < words.length; i++) {
     const term = words[i].trim();
@@ -97,213 +107,295 @@ export const processBatch = async (
     onLog(`\n-----------------------------------`);
     onLog(`🤖 Processing [${i + 1}/${words.length}]: ${term}`);
 
-    try {
-      // 1. GENERATE TEXT DATA (Gemini 2.5 Flash for Reliability)
-      onLog(`📝 Generating definitions...`);
-      
-      const prompt = `
-        Task: Create a Dictionary Entry for the Dutch word "${term}".
-        
-        Settings:
-        - Output Language (Definitions/Notes): ${targetLangName} (${targetLangCode})
-        - Target Word Language: Dutch (nl)
-        
-        JSON Structure Requirements:
-        1. "definition": Concise meaning (max 15 words) in ${targetLangName}.
-        2. "partOfSpeech": Dutch abbreviation (e.g., zn., ww., bn., bw.).
-        3. "grammar_data":
-           - "plural": Plural form (if noun).
-           - "article": "de" or "het" (if noun).
-           - "verbForms": "pres - past - pp" (if verb).
-           - "adjectiveForms": "base - comp - sup" (if adj).
-           - "synonyms": Array of strings (Dutch, max 3).
-           - "antonyms": Array of strings (Dutch, max 3).
-        4. "usageNote": Short cultural/usage tip in ${targetLangName} (max 20 words).
-        5. "examples": Array of exactly 2 objects:
-           - "dutch": The Dutch sentence.
-           - "translation": The ${targetLangName} translation.
+    let wordId: string | null = null;
+    let wordData: any = null;
 
-        STRICTLY OUTPUT VALID JSON.
-      `;
-      
-      const textResp = await ai.models.generateContent({
-        model: "gemini-2.5-flash", // Using Flash for speed and strict JSON adherence
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              definition: { type: Type.STRING },
-              partOfSpeech: { type: Type.STRING },
-              grammar_data: { 
-                type: Type.OBJECT, 
-                properties: {
-                  plural: { type: Type.STRING },
-                  article: { type: Type.STRING },
-                  verbForms: { type: Type.STRING },
-                  adjectiveForms: { type: Type.STRING },
-                  synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
-                }
-              },
-              usageNote: { type: Type.STRING },
-              examples: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
+    try {
+      // --- PHASE A: TEXT CONTENT ---
+      if (config.tasks.text) {
+        onLog(`📝 Generating Dictionary Data...`);
+        const prompt = `
+          Task: Create a Dictionary Entry for the Dutch word "${term}".
+          
+          Settings:
+          - Output Language (Definitions/Notes): ${targetLangName} (${targetLangCode})
+          - Target Word Language: Dutch (nl)
+          
+          JSON Structure Requirements:
+          1. "definition": Concise meaning (max 15 words) in ${targetLangName}.
+          2. "partOfSpeech": Dutch abbreviation (e.g., zn., ww., bn., bw.).
+          3. "grammar_data":
+             - "plural": Plural form (if noun).
+             - "article": "de" or "het" (if noun).
+             - "verbForms": "pres - past - pp" (if verb).
+             - "adjectiveForms": "base - comp - sup" (if adj).
+             - "synonyms": Array of strings (Dutch, max 3).
+             - "antonyms": Array of strings (Dutch, max 3).
+          4. "usageNote": Cultural/usage tip in ${targetLangName}. MAX 60-70 words. Rich and helpful.
+          5. "examples": Array of exactly 2 objects:
+             - "dutch": The Dutch sentence.
+             - "translation": The ${targetLangName} translation.
+
+          STRICTLY OUTPUT VALID JSON.
+        `;
+
+        const textResp = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                definition: { type: Type.STRING },
+                partOfSpeech: { type: Type.STRING },
+                grammar_data: { 
+                  type: Type.OBJECT, 
                   properties: {
-                    dutch: { type: Type.STRING },
-                    translation: { type: Type.STRING }
+                    plural: { type: Type.STRING },
+                    article: { type: Type.STRING },
+                    verbForms: { type: Type.STRING },
+                    adjectiveForms: { type: Type.STRING },
+                    synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  }
+                },
+                usageNote: { type: Type.STRING },
+                examples: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      dutch: { type: Type.STRING },
+                      translation: { type: Type.STRING }
+                    }
                   }
                 }
               }
             }
           }
-        }
-      });
-      
-      let rawText = textResp.text || "{}";
-      let textData;
-      try {
-        textData = JSON.parse(rawText);
-      } catch (parseError: any) {
-        throw new Error(`Failed to parse JSON response.`);
-      }
-      
-      if (!textData.definition) throw new Error("Failed to generate text data");
-
-      // 2. GENERATE IMAGE (Gemini 3 Pro Image)
-      onLog(`🎨 Painting illustration...`);
-      const imageContext = textData.examples?.[0]?.dutch || term;
-      const imgPrompt = `Studio Ghibli style illustration of: "${imageContext}". Key object: "${term}". Relaxed, detailed, vibrant colors.`;
-      
-      let publicImgUrl = null;
-      try {
-        const imgResp = await ai.models.generateContent({
-          model: "gemini-3-pro-image-preview",
-          contents: { parts: [{ text: imgPrompt }] },
-          config: { imageConfig: { imageSize: "1K" } }
         });
-        
-        const base64Img = imgResp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
-        
-        if (base64Img) {
-          const rawBytes = base64ToUint8Array(base64Img);
-          if (rawBytes) {
-              const blob = new Blob([rawBytes], { type: 'image/png' });
-              const fileName = `images/${term}_ghibli_${Date.now()}.png`;
-              const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
-              if (!upErr) {
-                 const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
-                 publicImgUrl = urlData.publicUrl;
-                 onLog(`✅ Image uploaded.`);
-              }
-          }
-        }
-      } catch (imgErr: any) {
-        onLog(`⚠️ Image failed: ${imgErr.message}`);
-      }
 
-      // 3. GENERATE AUDIO (TTS)
-      const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
+        let rawText = textResp.text || "{}";
         try {
-          if (!text) return null;
-          const ttsResp = await ai.models.generateContent({
-            model: "gemini-2.5-flash-preview-tts",
-            contents: [{ parts: [{ text }] }],
-            config: {
-              responseModalities: ['AUDIO' as any],
-              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-            },
-          });
-          const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-          if (audioBase64) {
-             const pcmData = base64ToUint8Array(audioBase64);
-             if (pcmData) {
-                 const wavBlob = createWavFile(pcmData);
-                 const fileName = `${pathPrefix}/${term}_${Date.now()}.wav`; 
-                 const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, wavBlob, { contentType: 'audio/wav' });
-                 if (!upErr) {
-                    const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
-                    return urlData.publicUrl;
-                 }
-             }
-          }
-        } catch (e) { return null; }
-        return null;
-      };
+          wordData = JSON.parse(rawText);
+        } catch (e) { throw new Error("JSON Parse failed"); }
 
-      onLog(`🗣️ Generating Audio...`);
-      const wordAudioUrl = await generateAndUploadTTS(term, 'audio/words');
-      await sleep(500);
-      const usageAudioUrl = await generateAndUploadTTS(textData.usageNote, `audio/notes_${targetLangCode}`);
-      
-      const exampleAudioUrls: string[] = [];
-      if (textData.examples) {
-        for (const ex of textData.examples) {
-           await sleep(500); 
-           const url = await generateAndUploadTTS(ex.dutch, 'audio/examples');
-           exampleAudioUrls.push(url || "");
-        }
-      }
+        // Save Word Base
+        // Note: We do NOT clear pronunciation_audio_url here because the word term hasn't changed.
+        const { data: wordRow, error: wordErr } = await supabase
+          .from('words')
+          .upsert({ 
+            term: term, 
+            part_of_speech: wordData.partOfSpeech,
+            grammar_data: wordData.grammar_data
+          }, { onConflict: 'term' })
+          .select()
+          .single();
+        
+        if (wordErr) throw wordErr;
+        wordId = wordRow.id;
 
-      // 4. SAVE TO DB
-      onLog(`💾 Saving to Database...`);
-      
-      const { data: wordRow, error: wordErr } = await supabase
-        .from('words')
-        .upsert({ 
-          term: term, 
-          part_of_speech: textData.partOfSpeech,
-          grammar_data: textData.grammar_data,
-          pronunciation_audio_url: wordAudioUrl
-        }, { onConflict: 'term' })
-        .select()
-        .single();
-      
-      if (wordErr) throw wordErr;
-      const wordId = wordRow.id;
-
-      await supabase.from('localized_content').upsert({
-        word_id: wordId,
-        language_code: targetLangCode,
-        definition: textData.definition,
-        usage_note: textData.usageNote,
-        usage_note_audio_url: usageAudioUrl
-      }, { onConflict: 'word_id, language_code' });
-
-      if (textData.examples) {
-        let idx = 0;
-        for (const ex of textData.examples) {
-          await supabase.from('examples').upsert({
-            word_id: wordId,
-            language_code: targetLangCode,
-            sentence_index: idx,
-            dutch_sentence: ex.dutch,
-            translation: ex.translation,
-            audio_url: exampleAudioUrls[idx]
-          }, { onConflict: 'word_id, language_code, sentence_index' });
-          idx++;
-        }
-      }
-
-      if (publicImgUrl) {
-        await supabase.from('word_images').upsert({
+        // Save Localized Content
+        await supabase.from('localized_content').upsert({
           word_id: wordId,
-          style: 'ghibli', 
-          image_url: publicImgUrl
-        }, { onConflict: 'word_id, style' });
+          language_code: targetLangCode,
+          definition: wordData.definition,
+          usage_note: wordData.usageNote
+        }, { onConflict: 'word_id, language_code' });
+
+        // Save Examples
+        if (wordData.examples) {
+          let idx = 0;
+          for (const ex of wordData.examples) {
+            // CRITICAL: When updating text, we MUST clear the old audio_url for examples
+            // because the new sentence likely differs from the old one.
+            await supabase.from('examples').upsert({
+              word_id: wordId,
+              language_code: targetLangCode,
+              sentence_index: idx,
+              dutch_sentence: ex.dutch,
+              translation: ex.translation,
+              audio_url: null 
+            }, { onConflict: 'word_id, language_code, sentence_index' });
+            idx++;
+          }
+        }
+        onLog(`✅ Text saved (Example audio reset).`);
       }
 
-      onLog(`🎉 Success! Saved [${term}].`);
+      // --- LOOKUP LOGIC: FETCH EXISTING WORD IF TEXT TASK IS SKIPPED ---
+      if (!wordId && (config.tasks.image || config.tasks.audio)) {
+         onLog(`🔍 Checking database for existing word: "${term}"...`);
+         
+         const { data: existWord } = await supabase
+            .from('words')
+            .select('id')
+            .eq('term', term)
+            .maybeSingle(); 
+
+         if (!existWord) {
+           onLog(`⚠️ Word "${term}" NOT FOUND in database. Skipping Image/Audio.`);
+           onLog(`   Please run "Text Content" task first for this word.`);
+           continue; 
+         }
+         
+         wordId = existWord.id;
+         onLog(`   -> Found ID: ${wordId}`);
+
+         // We need 'wordData' (specifically examples) for Image context and Audio text
+         if (!wordData) {
+            const { data: existExs } = await supabase
+              .from('examples')
+              .select('dutch_sentence, sentence_index')
+              .eq('word_id', wordId)
+              .eq('language_code', targetLangCode); 
+            
+            // Reconstruct a minimal wordData object
+            wordData = { 
+              examples: existExs ? existExs.map((e: any) => ({ 
+                dutch: e.dutch_sentence, 
+                index: e.sentence_index 
+              })) : [] 
+            };
+            
+            // Fallback for image context
+            if (config.tasks.image && (!wordData.examples || wordData.examples.length === 0)) {
+               const { data: anyEx } = await supabase
+                 .from('examples')
+                 .select('dutch_sentence')
+                 .eq('word_id', wordId)
+                 .limit(1)
+                 .maybeSingle();
+               if (anyEx) {
+                 wordData.examples = [{ dutch: anyEx.dutch_sentence }];
+               }
+            }
+         }
+      }
+
+      // --- PHASE B: IMAGE GENERATION ---
+      if (config.tasks.image && wordId) {
+        onLog(`🎨 Painting illustration (${config.imageStyle})...`);
+        
+        const contextSentence = wordData?.examples?.[0]?.dutch || term;
+        
+        const stylePrompts: Record<string, string> = {
+          cartoon: 'fun, energetic cartoon style',
+          ghibli: 'Studio Ghibli anime style, detailed backgrounds, soft colors',
+          flat: 'minimalist flat design, vector art, vibrant colors',
+          watercolor: 'soft artistic watercolor painting',
+          pixel: '8-bit pixel art, retro game style',
+          realistic: 'photorealistic, high detailed'
+        };
+        const stylePrompt = stylePrompts[config.imageStyle] || stylePrompts['ghibli'];
+
+        const imgPrompt = `Create a ${stylePrompt} illustration of: "${contextSentence}". Key object: "${term}". Ensure the image clearly depicts the meaning.`;
+
+        try {
+          const imgResp = await ai.models.generateContent({
+            model: "gemini-3-pro-image-preview",
+            contents: { parts: [{ text: imgPrompt }] },
+            config: { imageConfig: { imageSize: "1K" } }
+          });
+          
+          const base64Img = imgResp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
+          
+          if (base64Img) {
+            const rawBytes = base64ToUint8Array(base64Img);
+            if (rawBytes) {
+                const blob = new Blob([rawBytes], { type: 'image/png' });
+                const fileName = `images/${term}_${config.imageStyle}_${Date.now()}.png`;
+                const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
+                if (!upErr) {
+                   const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+                   
+                   await supabase.from('word_images').upsert({
+                     word_id: wordId,
+                     style: config.imageStyle, 
+                     image_url: urlData.publicUrl
+                   }, { onConflict: 'word_id, style' });
+                   
+                   onLog(`✅ Image uploaded.`);
+                }
+            }
+          }
+        } catch (imgErr: any) {
+          onLog(`⚠️ Image failed: ${imgErr.message}`);
+        }
+      }
+
+      // --- PHASE C: AUDIO GENERATION ---
+      if (config.tasks.audio && wordId) {
+        onLog(`🗣️ Generating Audio (Word & Examples Only)...`);
+        
+        const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
+           try {
+             if (!text) return null;
+             const ttsResp = await ai.models.generateContent({
+               model: "gemini-2.5-flash-preview-tts",
+               contents: [{ parts: [{ text }] }],
+               config: {
+                 responseModalities: ['AUDIO' as any],
+                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+               },
+             });
+             const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+             if (audioBase64) {
+                const pcmData = base64ToUint8Array(audioBase64);
+                if (pcmData) {
+                    const wavBlob = createWavFile(pcmData);
+                    const fileName = `${pathPrefix}/${term}_${Date.now()}.wav`; 
+                    const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, wavBlob, { contentType: 'audio/wav' });
+                    if (!upErr) {
+                       const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+                       return urlData.publicUrl;
+                    }
+                }
+             }
+           } catch (e) { return null; }
+           return null;
+        };
+
+        // 1. Word Audio
+        const wordAudioUrl = await generateAndUploadTTS(term, 'audio/words');
+        if (wordAudioUrl) {
+           await supabase.from('words').update({ pronunciation_audio_url: wordAudioUrl }).eq('id', wordId);
+           onLog(`   -> Word audio saved.`);
+        }
+
+        // 2. Example Audio (Skip Usage Note)
+        if (wordData.examples) {
+           let idx = 0;
+           for (const ex of wordData.examples) {
+              await sleep(1000); // Rate limit buffer
+              
+              const sentence = ex.dutch;
+              // Safe fallback for index if we fetched from DB (where it might be stored) vs generated
+              const sIndex = (ex as any).index !== undefined ? (ex as any).index : idx;
+              
+              if (sentence) {
+                 const exUrl = await generateAndUploadTTS(sentence, 'audio/examples');
+                 if (exUrl) {
+                    await supabase.from('examples').update({ audio_url: exUrl })
+                      .eq('word_id', wordId)
+                      .eq('language_code', targetLangCode)
+                      .eq('sentence_index', sIndex);
+                    onLog(`   -> Example ${sIndex + 1} audio saved.`);
+                 }
+              }
+              idx++;
+           }
+        }
+      }
+
+      onLog(`🎉 Finished [${term}].`);
 
     } catch (e: any) {
       onLog(`❌ Error processing ${term}: ${e.message}`);
     }
 
     if (i < words.length - 1) {
-      onLog(`⏳ Waiting ${DELAY_BETWEEN_WORDS_MS/1000}s...`);
       await sleep(DELAY_BETWEEN_WORDS_MS);
     }
   }

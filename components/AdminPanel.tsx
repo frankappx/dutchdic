@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { processBatch } from '../services/adminService';
+import { processBatch, BatchConfig } from '../services/adminService';
 import { LANGUAGES } from '../constants';
+import { ImageStyle } from '../types';
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -21,7 +22,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const logEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-fill env vars if available (except service key usually)
+  // New Configuration States
+  const [tasks, setTasks] = useState({
+    text: true,
+    image: true,
+    audio: true
+  });
+  const [selectedStyle, setSelectedStyle] = useState<ImageStyle>('ghibli');
+
+  const styles: ImageStyle[] = ['flat', 'cartoon', 'ghibli', 'watercolor', 'pixel', 'realistic'];
+
+  // Auto-fill env vars
   useEffect(() => {
     // @ts-ignore
     const envUrl = import.meta.env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -60,11 +71,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       alert("Please enter at least one word");
       return;
     }
+    if (!tasks.text && !tasks.image && !tasks.audio) {
+      alert("Please select at least one task (Text, Image, or Audio).");
+      return;
+    }
 
     setIsProcessing(true);
-    setLogs([`Started batch process for language: ${targetLang}...`]);
+    setLogs([`🚀 Started batch process for ${words.length} words...`]);
     
-    await processBatch(words, serviceKey, apiKey, supabaseUrl, targetLang, addLog);
+    const config: BatchConfig = {
+      tasks,
+      imageStyle: selectedStyle
+    };
+
+    await processBatch(words, serviceKey, apiKey, supabaseUrl, targetLang, config, addLog);
     
     setIsProcessing(false);
   };
@@ -92,15 +112,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-black text-gray-800">Database Factory 🏭</h1>
           <button onClick={onBack} className="px-4 py-2 bg-white rounded-lg shadow-sm font-bold text-gray-600">Exit</button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Config & Input */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Config Column */}
           <div className="space-y-6">
+            
+            {/* 1. Credentials */}
             <div className="bg-white p-6 rounded-2xl shadow-sm">
               <h2 className="font-bold mb-4 text-gray-700">1. Credentials</h2>
               <div className="space-y-3">
@@ -113,7 +135,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                    <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} className="w-full bg-gray-50 border p-2 rounded text-sm font-mono" />
                  </div>
                  <div>
-                   <label className="text-xs font-bold text-red-400">Supabase Service Role Key (Required for writing)</label>
+                   <label className="text-xs font-bold text-red-400">Supabase Service Role Key (Required)</label>
                    <input 
                      type="password" 
                      value={serviceKey} 
@@ -125,14 +147,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl shadow-sm">
-              <h2 className="font-bold mb-4 text-gray-700">2. Configuration</h2>
-              <div className="mb-4">
-                 <label className="text-xs font-bold text-gray-400 block mb-1">Generate for Language (Target)</label>
+            {/* 2. Task Configuration */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-pop-purple/10">
+              <h2 className="font-bold mb-4 text-gray-700">2. Task Configuration</h2>
+              
+              <div className="mb-6">
+                 <label className="text-xs font-bold text-gray-400 block mb-2">Target Language (Definitions)</label>
                  <select 
                     value={targetLang} 
                     onChange={e => setTargetLang(e.target.value)}
-                    className="w-full bg-gray-50 border p-2 rounded text-sm font-bold text-pop-purple"
+                    className="w-full bg-gray-50 border p-2 rounded-lg text-sm font-bold text-pop-purple"
                  >
                     {LANGUAGES.map(l => (
                       <option key={l.code} value={l.code}>{l.name} {l.flag}</option>
@@ -140,6 +164,67 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                  </select>
               </div>
 
+              <div className="space-y-4 mb-6">
+                <label className="text-xs font-bold text-gray-400 block">Select Operations:</label>
+                
+                <label className="flex items-center p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={tasks.text} 
+                    onChange={e => setTasks(p => ({...p, text: e.target.checked}))}
+                    className="w-5 h-5 text-pop-purple rounded focus:ring-pop-purple mr-3"
+                  />
+                  <div>
+                    <span className="font-bold text-gray-700 block">A. Text Content</span>
+                    <span className="text-xs text-gray-400">Definition, Grammar, Examples (Gemini 2.5 Flash)</span>
+                  </div>
+                </label>
+
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                  <label className="flex items-center cursor-pointer mb-3">
+                    <input 
+                      type="checkbox" 
+                      checked={tasks.image} 
+                      onChange={e => setTasks(p => ({...p, image: e.target.checked}))}
+                      className="w-5 h-5 text-pop-purple rounded focus:ring-pop-purple mr-3"
+                    />
+                    <div>
+                      <span className="font-bold text-gray-700 block">B. Images</span>
+                      <span className="text-xs text-gray-400">Gemini 3 Pro Image</span>
+                    </div>
+                  </label>
+                  
+                  {tasks.image && (
+                    <div className="ml-8 mt-2 animate-fade-in">
+                       <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Image Style</label>
+                       <select 
+                          value={selectedStyle} 
+                          onChange={e => setSelectedStyle(e.target.value as ImageStyle)}
+                          className="w-full text-sm border-gray-200 rounded-lg p-2"
+                       >
+                         {styles.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                       </select>
+                    </div>
+                  )}
+                </div>
+
+                <label className="flex items-center p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                  <input 
+                    type="checkbox" 
+                    checked={tasks.audio} 
+                    onChange={e => setTasks(p => ({...p, audio: e.target.checked}))}
+                    className="w-5 h-5 text-pop-purple rounded focus:ring-pop-purple mr-3"
+                  />
+                  <div>
+                    <span className="font-bold text-gray-700 block">C. Audio (TTS)</span>
+                    <span className="text-xs text-gray-400">Word & Examples Only (Gemini 2.5 Flash TTS)</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* 3. Word List & Action */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm">
               <h2 className="font-bold mb-2 text-gray-700">3. Word List</h2>
               <textarea 
                 value={wordInput}
@@ -149,21 +234,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               />
               <div className="mt-4 flex justify-between items-center">
                  <span className="text-xs text-gray-400">
-                   {wordInput.split('\n').filter(w => w.trim()).length} words to process
+                   {wordInput.split('\n').filter(w => w.trim()).length} words
                  </span>
                  <button 
                    onClick={handleStart}
                    disabled={isProcessing}
                    className={`px-6 py-3 rounded-xl font-bold text-white shadow-lg transition-transform ${isProcessing ? 'bg-gray-400 cursor-wait' : 'bg-pop-teal hover:scale-105'}`}
                  >
-                   {isProcessing ? 'Processing...' : 'Start Factory'}
+                   {isProcessing ? 'Processing...' : 'Start Batch'}
                  </button>
               </div>
             </div>
           </div>
 
-          {/* Logs */}
-          <div className="bg-gray-900 rounded-2xl p-6 shadow-xl flex flex-col h-[600px]">
+          {/* Logs Column */}
+          <div className="bg-gray-900 rounded-2xl p-6 shadow-xl flex flex-col h-[600px] lg:h-auto lg:min-h-full">
             <h2 className="font-bold mb-4 text-gray-400 text-sm uppercase tracking-widest">Operation Log</h2>
             <div className="flex-1 overflow-y-auto font-mono text-xs text-green-400 space-y-1 p-2 bg-black/30 rounded-lg">
                {logs.length === 0 && <span className="opacity-30">Waiting to start...</span>}
