@@ -359,8 +359,12 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
       },
     });
     return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-  } catch (error) {
+  } catch (error: any) {
     console.warn("TTS generation failed", error);
+    // Propagate quota error
+    if (error.message?.includes('429') || error.toString().includes('429')) {
+      throw new Error("TTS Quota Exceeded (429)");
+    }
     return null;
   }
 };
@@ -396,6 +400,7 @@ export const playAudioFromUrl = async (url: string): Promise<void> => {
     await audio.play();
   } catch (error) {
     console.warn("Failed to play audio URL", error);
+    throw new Error("Failed to play DB audio");
   }
 };
 
@@ -406,8 +411,13 @@ export const playTTS = async (text: string, audioUrl?: string): Promise<void> =>
   // 1. If DB Audio URL exists, prioritize it!
   if (audioUrl) {
     console.log("🔊 Playing from DB URL:", audioUrl);
-    await playAudioFromUrl(audioUrl);
-    return;
+    try {
+      await playAudioFromUrl(audioUrl);
+      return;
+    } catch (e) {
+      console.warn("DB Audio failed, falling back to API...", e);
+      // Fall through to API
+    }
   }
 
   // 2. Check Global Cache
@@ -417,10 +427,16 @@ export const playTTS = async (text: string, audioUrl?: string): Promise<void> =>
   }
 
   // 3. Fetch from API
-  const data = await fetchTTS(text);
-  if (data) {
-    globalAudioCache[text] = data; 
-    await playAudio(data);
+  try {
+    const data = await fetchTTS(text);
+    if (data) {
+      globalAudioCache[text] = data; 
+      await playAudio(data);
+    } else {
+      throw new Error("No audio data generated");
+    }
+  } catch (e: any) {
+    throw e; // Rethrow so UI can handle (e.g. Quota Exceeded)
   }
 };
 

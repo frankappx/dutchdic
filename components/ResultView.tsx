@@ -45,16 +45,25 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
   const [heardText, setHeardText] = useState('');
   const [showMicModal, setShowMicModal] = useState(false);
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
+  const [quotaError, setQuotaError] = useState(false);
 
   // UPDATED: Accept optional audioUrl from DB
   const handleAudio = async (text: string, id: string, audioUrl?: string) => {
     if (loadingAudio) return;
-
+    setQuotaError(false);
     setLoadingAudio(id);
-    // Pass the audioUrl (if any) to the service. 
-    // The service will prefer playing this URL over generating new TTS.
-    await playTTS(text, audioUrl);
-    setLoadingAudio(null);
+    
+    try {
+      // The service will prefer playing this URL over generating new TTS.
+      await playTTS(text, audioUrl);
+    } catch (e: any) {
+      console.error("Audio playback failed", e);
+      if (e.message.includes('Quota') || e.message.includes('429')) {
+        setQuotaError(true);
+      }
+    } finally {
+      setLoadingAudio(null);
+    }
   };
 
   const handlePracticePronunciation = () => {
@@ -144,12 +153,16 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                <button 
                 // Pass entry.audioUrl here
                 onClick={() => handleAudio(entry.term, 'term', entry.audioUrl)}
-                className="inline-flex items-center gap-2 px-3 py-1 bg-pop-yellow rounded-full text-xs font-bold shadow-sm active:scale-95 transition-transform text-pop-dark"
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold shadow-sm active:scale-95 transition-transform 
+                  ${entry.audioUrl ? 'bg-pop-teal text-white' : 'bg-pop-yellow text-pop-dark'}
+                `}
+                title={entry.audioUrl ? "Plays stored audio (Offline ready)" : "Generates audio from AI"}
                >
                  {loadingAudio === 'term' ? (
                    <i className="fa-solid fa-spinner fa-spin"></i>
                  ) : (
-                   <i className="fa-solid fa-volume-high"></i> 
+                   // Filled icon for saved audio, Normal icon for generated
+                   <i className={`fa-solid fa-volume-high`}></i> 
                  )}
                  {labels.pronounce}
                </button>
@@ -287,7 +300,9 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                 <button 
                   // Pass example audioUrl here
                   onClick={() => handleAudio(ex.target, `ex-${idx}`, ex.audioUrl)} 
-                  className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-pop-purple shadow-sm hover:scale-110 transition-transform shrink-0 ml-2"
+                  className={`w-8 h-8 flex items-center justify-center rounded-full shadow-sm hover:scale-110 transition-transform shrink-0 ml-2
+                    ${ex.audioUrl ? 'bg-pop-teal text-white' : 'bg-white text-pop-purple'}
+                  `}
                   aria-label="Listen to example"
                 >
                   {loadingAudio === `ex-${idx}` ? (
@@ -349,6 +364,28 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
               className="w-full bg-pop-dark text-white font-bold py-3 rounded-xl hover:scale-[1.02] transition-transform shadow-md"
             >
               OK
+            </button>
+          </div>
+        </div>
+      )}
+
+      {quotaError && (
+        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full text-center relative">
+            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4 text-yellow-500">
+              <i className="fa-solid fa-clock text-3xl"></i>
+            </div>
+            
+            <h3 className="text-xl font-black text-pop-dark mb-2">Daily Quota Reached</h3>
+            <p className="text-gray-500 mb-6 text-sm leading-relaxed">
+              The daily limit for AI-generated audio has been reached. Please wait, or ask the admin to batch-generate audio for this word.
+            </p>
+            
+            <button 
+              onClick={() => setQuotaError(false)}
+              className="w-full bg-pop-dark text-white font-bold py-3 rounded-xl hover:scale-[1.02] transition-transform shadow-md"
+            >
+              Close
             </button>
           </div>
         </div>

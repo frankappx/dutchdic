@@ -30,9 +30,14 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
     if (isLoadingAudio) return;
 
     setIsLoadingAudio(true);
-    // FIX: Pass entry.audioUrl to prioritize DB audio over API generation
-    await playTTS(entry.term, entry.audioUrl);
-    setIsLoadingAudio(false);
+    try {
+      // FIX: Pass entry.audioUrl to prioritize DB audio over API generation
+      await playTTS(entry.term, entry.audioUrl);
+    } catch (e) {
+      console.warn("Flashcard audio failed");
+    } finally {
+      setIsLoadingAudio(false);
+    }
   };
 
   // Safety checks for data
@@ -73,7 +78,9 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
                 
                 <button 
                   onClick={handleAudio}
-                  className="w-12 h-12 rounded-full bg-pop-yellow text-pop-dark flex items-center justify-center hover:scale-105 transition-transform shadow-sm"
+                  className={`w-12 h-12 rounded-full flex items-center justify-center hover:scale-105 transition-transform shadow-sm
+                    ${entry.audioUrl ? 'bg-pop-teal text-white' : 'bg-pop-yellow text-pop-dark'}
+                  `}
                   aria-label="Play pronunciation"
                 >
                   {isLoadingAudio ? <i className="fa-solid fa-spinner fa-spin text-lg"></i> : <i className="fa-solid fa-volume-high text-lg"></i>}
