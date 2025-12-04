@@ -8,15 +8,20 @@ const STORAGE_BUCKET = 'dictionary-assets';
 // Helper: Pause execution
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-// Helper: Base64 to Blob
+// Helper: Robust Base64 to Blob conversion
 const base64ToBlob = (base64: string, mimeType: string) => {
-  const byteCharacters = atob(base64);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  try {
+    const byteCharacters = atob(base64);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    return new Blob([byteArray], { type: mimeType });
+  } catch (e) {
+    console.error("Failed to convert base64 to blob", e);
+    return null;
   }
-  const byteArray = new Uint8Array(byteNumbers);
-  return new Blob([byteArray], { type: mimeType });
 };
 
 const getLanguageName = (code: string) => {
@@ -77,12 +82,13 @@ export const processBatch = async (
              "synonyms": ["Dutch word 1", "Dutch word 2"],
              "antonyms": ["Dutch word 1"]
           },
-          "usageNote": "Fun tip strictly in ${targetLangName}. KEEP IT SHORT (Max 20 words).",
+          "usageNote": "Fun tip strictly in ${targetLangName}. KEEP IT SHORT (Max 2 sentences, fun tone).",
           "examples": [
             { "dutch": "Dutch sentence 1", "translation": "Translation in ${targetLangName}" },
             { "dutch": "Dutch sentence 2", "translation": "Translation in ${targetLangName}" }
           ]
         }
+        STRICTLY return pure JSON. No markdown, no rambling.
       `;
       
       const textResp = await ai.models.generateContent({
@@ -90,7 +96,7 @@ export const processBatch = async (
         contents: prompt,
         config: {
           responseMimeType: "application/json",
-          maxOutputTokens: 2000, // Limit to prevent infinite loops/truncation
+          maxOutputTokens: 2000, 
           responseSchema: {
             type: Type.OBJECT,
             properties: {
@@ -113,7 +119,7 @@ export const processBatch = async (
                   type: Type.OBJECT,
                   properties: {
                     dutch: { type: Type.STRING },
-                    translation: { type: Type.STRING } // Using generic 'translation' key to avoid casing issues
+                    translation: { type: Type.STRING }
                   }
                 }
               }
@@ -124,13 +130,12 @@ export const processBatch = async (
       
       let rawText = textResp.text || "{}";
       
-      // Robust JSON extraction: find the first '{' and the last '}'
+      // Robust JSON extraction
       const firstBrace = rawText.indexOf('{');
       const lastBrace = rawText.lastIndexOf('}');
       if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
          rawText = rawText.substring(firstBrace, lastBrace + 1);
       } else {
-         // Fallback cleaning if braces aren't found cleanly
          rawText = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
       }
       
@@ -144,9 +149,8 @@ export const processBatch = async (
       
       if (!textData.definition) throw new Error("Failed to generate text data");
 
-      // 2. GENERATE IMAGE (Gemini 3 Pro Image - High Quality)
+      // 2. GENERATE IMAGE (Gemini 3 Pro Image)
       onLog(`🎨 Painting illustration (Ghibli style)...`);
-      // Use the Dutch example for image context
       const imageContext = textData.examples?.[0]?.dutch || term;
       const imgPrompt = `Studio Ghibli style illustration of: "${imageContext}". Key object: "${term}". Relaxed, detailed, vibrant colors.`;
       
@@ -162,26 +166,29 @@ export const processBatch = async (
         
         if (base64Img) {
           const blob = base64ToBlob(base64Img, 'image/png');
-          const fileName = `images/${term}_ghibli_${Date.now()}.png`;
-          const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
-          if (upErr) {
-             if (upErr.message.includes("Bucket not found")) {
-                throw new Error("Bucket 'dictionary-assets' not found. Please create it in Supabase > Storage (Public).");
-             }
-             throw upErr;
+          if (blob && blob.size > 0) {
+              const fileName = `images/${term}_ghibli_${Date.now()}.png`;
+              const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
+              if (upErr) {
+                 if (upErr.message.includes("Bucket not found")) {
+                    throw new Error("Bucket 'dictionary-assets' not found.");
+                 }
+                 throw upErr;
+              }
+              const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+              publicImgUrl = urlData.publicUrl;
+              onLog(`✅ Image uploaded.`);
           }
-          
-          const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
-          publicImgUrl = urlData.publicUrl;
-          onLog(`✅ Image uploaded.`);
         }
       } catch (imgErr: any) {
         onLog(`⚠️ Image failed: ${imgErr.message}`);
       }
 
-      // 3. GENERATE AUDIO (TTS) & UPLOAD
+      // 3. GENERATE AUDIO (TTS) & UPLOAD - FIXED LOGIC
       const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
         try {
+          if (!text || text.length === 0) return null;
+          
           const ttsResp = await ai.models.generateContent({
             model: "gemini-2.5-flash-preview-tts",
             contents: [{ parts: [{ text }] }],
@@ -190,27 +197,46 @@ export const processBatch = async (
               speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
             },
           });
+          
           const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+          
           if (audioBase64) {
-             const blob = base64ToBlob(audioBase64, 'audio/wav');
-             const fileName = `${pathPrefix}/${term}_${Date.now()}.wav`; 
-             const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'audio/wav' });
-             if (!upErr) {
-               const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
-               return urlData.publicUrl;
+             // Use audio/mpeg (MP3) for better browser compatibility
+             const blob = base64ToBlob(audioBase64, 'audio/mpeg');
+             
+             if (blob && blob.size > 0) {
+                 const fileName = `${pathPrefix}/${term}_${Date.now()}.mp3`; 
+                 const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'audio/mpeg' });
+                 
+                 if (upErr) {
+                    console.warn(`Failed to upload TTS for ${text.substring(0, 10)}...`, upErr);
+                    return null;
+                 }
+                 
+                 const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+                 return urlData.publicUrl;
+             } else {
+                 console.warn(`Generated zero-byte audio for ${text.substring(0,10)}...`);
              }
           }
-        } catch (e) { return null; }
+        } catch (e) { 
+            console.warn("TTS Gen Error:", e);
+            return null; 
+        }
         return null;
       };
 
       onLog(`🗣️ Generating Audio (TTS)...`);
       const wordAudioUrl = await generateAndUploadTTS(term, 'audio/words');
+      
+      // Small pause to prevent rate limiting on TTS if doing many calls rapidly
+      await sleep(1000); 
       const usageAudioUrl = await generateAndUploadTTS(textData.usageNote, `audio/notes_${targetLangCode}`);
       
       const exampleAudioUrls: string[] = [];
       if (textData.examples) {
         for (const ex of textData.examples) {
+           await sleep(500); // Safety buffer
            const url = await generateAndUploadTTS(ex.dutch, 'audio/examples');
            exampleAudioUrls.push(url || "");
         }
@@ -219,7 +245,6 @@ export const processBatch = async (
       // 4. INSERT INTO DATABASE
       onLog(`💾 Saving to Database (${targetLangCode})...`);
       
-      // Upsert Word (Language Neutral)
       const { data: wordRow, error: wordErr } = await supabase
         .from('words')
         .upsert({ 
@@ -234,25 +259,22 @@ export const processBatch = async (
       if (wordErr) throw wordErr;
       const wordId = wordRow.id;
 
-      // Upsert Localized Content (Specific Language)
       await supabase.from('localized_content').upsert({
         word_id: wordId,
-        language_code: targetLangCode, // Use the selected language
+        language_code: targetLangCode,
         definition: textData.definition,
         usage_note: textData.usageNote,
         usage_note_audio_url: usageAudioUrl
       }, { onConflict: 'word_id, language_code' });
 
-      // Upsert Examples (Specific Language)
       if (textData.examples) {
         let idx = 0;
         for (const ex of textData.examples) {
-          // Robust check for translation keys
           const translationText = ex.translation || (ex as any).english || (ex as any).chinese || "";
           
           await supabase.from('examples').upsert({
             word_id: wordId,
-            language_code: targetLangCode, // Use the selected language
+            language_code: targetLangCode,
             sentence_index: idx,
             dutch_sentence: ex.dutch,
             translation: translationText,
@@ -262,11 +284,10 @@ export const processBatch = async (
         }
       }
 
-      // Upsert Image (Language Neutral - attached to word)
       if (publicImgUrl) {
         await supabase.from('word_images').upsert({
           word_id: wordId,
-          style: 'ghibli', // Currently fixed to Ghibli, can be dynamic later
+          style: 'ghibli', 
           image_url: publicImgUrl
         }, { onConflict: 'word_id, style' });
       }
@@ -277,7 +298,6 @@ export const processBatch = async (
       onLog(`❌ Error processing ${term}: ${e.message}`);
     }
 
-    // Wait before next word
     if (i < words.length - 1) {
       onLog(`⏳ Waiting ${DELAY_BETWEEN_WORDS_MS/1000}s...`);
       await sleep(DELAY_BETWEEN_WORDS_MS);
