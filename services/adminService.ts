@@ -123,9 +123,23 @@ export const processBatch = async (
       });
       
       let rawText = textResp.text || "{}";
-      rawText = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
       
-      const textData = JSON.parse(rawText);
+      // Robust JSON extraction: find the first '{' and the last '}'
+      const firstBrace = rawText.indexOf('{');
+      const lastBrace = rawText.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+         rawText = rawText.substring(firstBrace, lastBrace + 1);
+      } else {
+         // Fallback cleaning if braces aren't found cleanly
+         rawText = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
+      }
+      
+      let textData;
+      try {
+        textData = JSON.parse(rawText);
+      } catch (parseError: any) {
+        throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+      }
       
       if (!textData.definition) throw new Error("Failed to generate text data");
 
