@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type } from "@google/genai";
 
@@ -8,18 +9,60 @@ const STORAGE_BUCKET = 'dictionary-assets';
 // Helper: Pause execution
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-// Helper: Robust Base64 to Blob conversion
-const base64ToBlob = (base64: string, mimeType: string) => {
+// Helper: Create WAV Header for Raw PCM Data
+// Gemini TTS returns: 24kHz, 1 Channel (Mono), 16-bit PCM
+const createWavFile = (pcmData: Uint8Array): Blob => {
+  const numChannels = 1;
+  const sampleRate = 24000;
+  const bitsPerSample = 16;
+  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+  const blockAlign = numChannels * (bitsPerSample / 8);
+  const dataSize = pcmData.length;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  // RIFF chunk descriptor
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(view, 8, 'WAVE');
+
+  // fmt sub-chunk
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+  view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+  view.setUint16(22, numChannels, true); // NumChannels
+  view.setUint32(24, sampleRate, true); // SampleRate
+  view.setUint32(28, byteRate, true); // ByteRate
+  view.setUint16(32, blockAlign, true); // BlockAlign
+  view.setUint16(34, bitsPerSample, true); // BitsPerSample
+
+  // data sub-chunk
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataSize, true); // Subchunk2Size
+
+  // Write PCM data
+  const pcmBytes = new Uint8Array(buffer, 44);
+  pcmBytes.set(pcmData);
+
+  return new Blob([buffer], { type: 'audio/wav' });
+};
+
+const writeString = (view: DataView, offset: number, string: string) => {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+};
+
+const base64ToUint8Array = (base64: string): Uint8Array | null => {
   try {
-    const byteCharacters = atob(base64);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
     }
-    const byteArray = new Uint8Array(byteNumbers);
-    return new Blob([byteArray], { type: mimeType });
+    return bytes;
   } catch (e) {
-    console.error("Failed to convert base64 to blob", e);
+    console.error("Base64 decode failed", e);
     return null;
   }
 };
@@ -66,17 +109,25 @@ export const processBatch = async (
     try {
       // 1. GENERATE TEXT DATA (Gemini 2.5 Flash - Fast)
       onLog(`📝 Generating definitions...`);
+      
+      const systemInstruction = `
+        You are a Strict Dictionary Database Generator.
+        Output ONLY valid JSON.
+        NO markdown formatting (no \`\`\`json).
+        NO conversational text.
+        Concise definitions.
+      `;
+
       const prompt = `
-        Role: Strict Dictionary Database Generator.
         Task: Analyze the Dutch word "${term}" and output structured JSON.
         
         Constraints:
         1. Target Language: Dutch (nl). Source Language: ${targetLangName} (${targetLangCode}).
         2. Definition: Max 15 words. Concise.
-        3. Usage Note: Max 2 sentences. Fun/Casual tone.
+        3. Usage Note: Max 2 sentences (approx 20 words). Fun/Casual tone.
         4. Examples: Exactly 2 examples.
         5. Synonyms/Antonyms: Max 5 items each.
-        6. NO MARKDOWN. NO PREAMBLE. PURE JSON.
+        6. OUTPUT: Pure JSON only.
 
         Output Format (JSON):
         {
@@ -89,7 +140,7 @@ export const processBatch = async (
              "synonyms": ["word1", "word2"],
              "antonyms": ["word1"]
           },
-          "usageNote": "Tip in ${targetLangName}",
+          "usageNote": "Fun tip strictly in ${targetLangName}. KEEP IT SHORT.",
           "examples": [
             { "dutch": "Dutch sentence 1", "translation": "Trans 1" },
             { "dutch": "Dutch sentence 2", "translation": "Trans 2" }
@@ -101,7 +152,7 @@ export const processBatch = async (
         model: "gemini-2.5-flash",
         contents: prompt,
         config: {
-          systemInstruction: "You are a precise data generation machine. Output only valid JSON. Be concise.",
+          systemInstruction: systemInstruction,
           responseMimeType: "application/json",
           maxOutputTokens: 8192, 
           responseSchema: {
@@ -172,8 +223,9 @@ export const processBatch = async (
         const base64Img = imgResp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
         
         if (base64Img) {
-          const blob = base64ToBlob(base64Img, 'image/png');
-          if (blob && blob.size > 0) {
+          const rawBytes = base64ToUint8Array(base64Img);
+          if (rawBytes && rawBytes.length > 0) {
+              const blob = new Blob([rawBytes], { type: 'image/png' });
               const fileName = `images/${term}_ghibli_${Date.now()}.png`;
               const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
               if (upErr) {
@@ -191,7 +243,7 @@ export const processBatch = async (
         onLog(`⚠️ Image failed: ${imgErr.message}`);
       }
 
-      // 3. GENERATE AUDIO (TTS) & UPLOAD - FIXED LOGIC
+      // 3. GENERATE AUDIO (TTS) & UPLOAD - RAW PCM -> WAV
       const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
         try {
           if (!text || text.length === 0) return null;
@@ -208,12 +260,15 @@ export const processBatch = async (
           const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
           
           if (audioBase64) {
-             // Use audio/mpeg (MP3) for better browser compatibility
-             const blob = base64ToBlob(audioBase64, 'audio/mpeg');
+             const pcmData = base64ToUint8Array(audioBase64);
              
-             if (blob && blob.size > 0) {
-                 const fileName = `${pathPrefix}/${term}_${Date.now()}.mp3`; 
-                 const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'audio/mpeg' });
+             if (pcmData && pcmData.length > 0) {
+                 // Convert Raw PCM to WAV
+                 const wavBlob = createWavFile(pcmData);
+                 
+                 // Save as .wav
+                 const fileName = `${pathPrefix}/${term}_${Date.now()}.wav`; 
+                 const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, wavBlob, { contentType: 'audio/wav' });
                  
                  if (upErr) {
                     console.warn(`Failed to upload TTS for ${text.substring(0, 10)}...`, upErr);
@@ -222,8 +277,6 @@ export const processBatch = async (
                  
                  const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
                  return urlData.publicUrl;
-             } else {
-                 console.warn(`Generated zero-byte audio for ${text.substring(0,10)}...`);
              }
           }
         } catch (e) { 
@@ -236,14 +289,14 @@ export const processBatch = async (
       onLog(`🗣️ Generating Audio (TTS)...`);
       const wordAudioUrl = await generateAndUploadTTS(term, 'audio/words');
       
-      // Small pause to prevent rate limiting on TTS if doing many calls rapidly
+      // Small pause to prevent rate limiting
       await sleep(1000); 
       const usageAudioUrl = await generateAndUploadTTS(textData.usageNote, `audio/notes_${targetLangCode}`);
       
       const exampleAudioUrls: string[] = [];
       if (textData.examples) {
         for (const ex of textData.examples) {
-           await sleep(500); // Safety buffer
+           await sleep(500); 
            const url = await generateAndUploadTTS(ex.dutch, 'audio/examples');
            exampleAudioUrls.push(url || "");
         }
