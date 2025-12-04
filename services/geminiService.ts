@@ -158,8 +158,6 @@ export const generateDefinition = async (
   // 1. SUPABASE CACHE LOOKUP (Via RPC)
   if (supabase) {
     try {
-      // Use the RPC function 'get_word_details' we created in SQL
-      // This handles citext (case-insensitivity) automatically
       const { data, error } = await supabase
         .rpc('get_word_details', { 
           search_term: term, 
@@ -170,22 +168,20 @@ export const generateDefinition = async (
       if (data && !error) {
         console.log("⚡️ Cache Hit: Loaded from Database (RPC)", data);
         
-        // Map DB View fields (snake_case) to Frontend Type fields (camelCase)
         const styles = data.images_by_style || {};
         const dbImageUrl = styles[preferredStyle] || styles['ghibli'] || Object.values(styles)[0] || undefined;
         
-        // Map Examples (Robustly handle column names)
-        // RPC might return 'target'/'source' OR 'dutch_sentence'/'translation'
+        // Robustly map Examples: handle 'target'/'source' AND 'dutch_sentence'/'translation'
         const mappedExamples = (data.examples || []).map((ex: any) => ({
           target: ex.target || ex.dutch_sentence || "",
           source: ex.source || ex.translation || "",
-          audioUrl: ex.audio_url // Map audio_url -> audioUrl
+          audioUrl: ex.audio_url
         }));
 
-        // Merge DB part_of_speech into grammar object
+        // Robustly map Grammar: Fallback to partOfSpeech if in grammar_data
         const mergedGrammar = {
           ...(data.grammar_data || {}),
-          partOfSpeech: data.part_of_speech
+          partOfSpeech: data.part_of_speech || data.grammar_data?.partOfSpeech
         };
 
         return {
@@ -195,7 +191,7 @@ export const generateDefinition = async (
           usageNote: data.usage_note,
           grammar: mergedGrammar,
           imageUrl: dbImageUrl,
-          audioUrl: data.pronunciation_audio_url // Map pronunciation_audio_url -> audioUrl
+          audioUrl: data.pronunciation_audio_url
         };
       }
     } catch (dbError) {
@@ -206,10 +202,7 @@ export const generateDefinition = async (
   // 2. GEMINI FALLBACK
   try {
     const isMonolingual = sourceLang === targetLang;
-    const exampleInstruction = isMonolingual 
-      ? "Leave this field as an empty string." 
-      : `The translation in the Source Language (${sourceLang}).`;
-
+    
     const prompt = `
       Role: Strict Dictionary API.
       Task: Analyze the term "${term}" for a Dutch learner.

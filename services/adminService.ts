@@ -3,14 +3,13 @@ import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type } from "@google/genai";
 
 // Configuration for rate limiting
-const DELAY_BETWEEN_WORDS_MS = 25000; // 25 seconds (Safe for Pro Image limits)
+const DELAY_BETWEEN_WORDS_MS = 10000; // Reduced to 10s as Flash is faster, but kept safe for Image model
 const STORAGE_BUCKET = 'dictionary-assets';
 
 // Helper: Pause execution
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 // Helper: Create WAV Header for Raw PCM Data
-// Gemini TTS returns: 24kHz, 1 Channel (Mono), 16-bit PCM
 const createWavFile = (pcmData: Uint8Array): Blob => {
   const numChannels = 1;
   const sampleRate = 24000;
@@ -21,26 +20,19 @@ const createWavFile = (pcmData: Uint8Array): Blob => {
   const buffer = new ArrayBuffer(44 + dataSize);
   const view = new DataView(buffer);
 
-  // RIFF chunk descriptor
   writeString(view, 0, 'RIFF');
   view.setUint32(4, 36 + dataSize, true);
   writeString(view, 8, 'WAVE');
-
-  // fmt sub-chunk
   writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
-  view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
-  view.setUint16(22, numChannels, true); // NumChannels
-  view.setUint32(24, sampleRate, true); // SampleRate
-  view.setUint32(28, byteRate, true); // ByteRate
-  view.setUint16(32, blockAlign, true); // BlockAlign
-  view.setUint16(34, bitsPerSample, true); // BitsPerSample
-
-  // data sub-chunk
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
   writeString(view, 36, 'data');
-  view.setUint32(40, dataSize, true); // Subchunk2Size
-
-  // Write PCM data
+  view.setUint32(40, dataSize, true);
   const pcmBytes = new Uint8Array(buffer, 44);
   pcmBytes.set(pcmData);
 
@@ -69,7 +61,7 @@ const base64ToUint8Array = (base64: string): Uint8Array | null => {
 
 const getLanguageName = (code: string) => {
   const map: Record<string, string> = {
-    'en': 'English', 'zh': 'Chinese (Simplified)', 'es': 'Spanish', 
+    'en': 'English', 'zh': 'Chinese', 'es': 'Spanish', 
     'fr': 'French', 'de': 'German', 'ja': 'Japanese', 
     'ko': 'Korean', 'pt': 'Portuguese', 'ru': 'Russian', 
     'ar': 'Arabic', 'nl': 'Dutch', 'uk': 'Ukrainian', 'pl': 'Polish'
@@ -90,14 +82,13 @@ export const processBatch = async (
     return;
   }
 
-  // Initialize Clients
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const ai = new GoogleGenAI({ apiKey });
   const targetLangName = getLanguageName(targetLangCode);
 
   onLog(`🚀 Starting batch process for ${words.length} words...`);
-  onLog(`🌍 Generating content for: ${targetLangName} (${targetLangCode})`);
-  onLog(`⏱️ Speed limit: 1 word every ${DELAY_BETWEEN_WORDS_MS/1000}s to protect API quota.`);
+  onLog(`🌍 Output Language: ${targetLangName} (${targetLangCode})`);
+  onLog(`⏱️ Speed limit: 1 word every ${DELAY_BETWEEN_WORDS_MS/1000}s.`);
 
   for (let i = 0; i < words.length; i++) {
     const term = words[i].trim();
@@ -107,56 +98,39 @@ export const processBatch = async (
     onLog(`🤖 Processing [${i + 1}/${words.length}]: ${term}`);
 
     try {
-      // 1. GENERATE TEXT DATA (Switching to Gemini 3 Pro for stability)
+      // 1. GENERATE TEXT DATA (Gemini 2.5 Flash for Reliability)
       onLog(`📝 Generating definitions...`);
       
-      const systemInstruction = `
-        You are a Strict Dictionary Database Generator.
-        Output ONLY valid JSON.
-        NO markdown formatting (no \`\`\`json).
-        NO conversational text.
-        Concise definitions.
-      `;
-
       const prompt = `
-        Task: Analyze the Dutch word "${term}" and output structured JSON.
+        Task: Create a Dictionary Entry for the Dutch word "${term}".
         
-        Constraints:
-        1. Target Language: Dutch (nl). Source Language: ${targetLangName} (${targetLangCode}).
-        2. Definition: Max 15 words. Concise.
-        3. Usage Note: Max 2 sentences (approx 20 words). Fun/Casual tone.
-        4. Examples: Exactly 2 examples.
-        5. Synonyms/Antonyms: Max 5 items each. PROVIDE AT LEAST 1.
-        6. OUTPUT: Pure JSON only. NO EXPLANATIONS.
+        Settings:
+        - Output Language (Definitions/Notes): ${targetLangName} (${targetLangCode})
+        - Target Word Language: Dutch (nl)
+        
+        JSON Structure Requirements:
+        1. "definition": Concise meaning (max 15 words) in ${targetLangName}.
+        2. "partOfSpeech": Dutch abbreviation (e.g., zn., ww., bn., bw.).
+        3. "grammar_data":
+           - "plural": Plural form (if noun).
+           - "article": "de" or "het" (if noun).
+           - "verbForms": "pres - past - pp" (if verb).
+           - "adjectiveForms": "base - comp - sup" (if adj).
+           - "synonyms": Array of strings (Dutch, max 3).
+           - "antonyms": Array of strings (Dutch, max 3).
+        4. "usageNote": Short cultural/usage tip in ${targetLangName} (max 20 words).
+        5. "examples": Array of exactly 2 objects:
+           - "dutch": The Dutch sentence.
+           - "translation": The ${targetLangName} translation.
 
-        Output Format (JSON):
-        {
-          "definition": "Definition in ${targetLangName}",
-          "partOfSpeech": "zn. / ww. / bn.",
-          "grammar_data": { 
-             "plural": "huizen (if noun)", 
-             "article": "de/het",
-             "verbForms": "lopen - liep - gelopen (if verb)", 
-             "adjectiveForms": "mooi - mooier - mooist (if adjective)",
-             "synonyms": ["word1", "word2"],
-             "antonyms": ["word1"]
-          },
-          "usageNote": "Fun tip strictly in ${targetLangName}. KEEP IT SHORT.",
-          "examples": [
-            { "dutch": "Dutch sentence 1", "translation": "Trans 1" },
-            { "dutch": "Dutch sentence 2", "translation": "Trans 2" }
-          ]
-        }
+        STRICTLY OUTPUT VALID JSON.
       `;
       
-      // SWITCHED TO gemini-3-pro-preview to prevent looping/hallucinations
       const textResp = await ai.models.generateContent({
-        model: "gemini-3-pro-preview",
+        model: "gemini-2.5-flash", // Using Flash for speed and strict JSON adherence
         contents: prompt,
         config: {
-          systemInstruction: systemInstruction,
           responseMimeType: "application/json",
-          maxOutputTokens: 8192, 
           responseSchema: {
             type: Type.OBJECT,
             properties: {
@@ -190,28 +164,17 @@ export const processBatch = async (
       });
       
       let rawText = textResp.text || "{}";
-      
-      // Robust JSON extraction
-      const firstBrace = rawText.indexOf('{');
-      const lastBrace = rawText.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-         rawText = rawText.substring(firstBrace, lastBrace + 1);
-      } else {
-         rawText = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
-      }
-      
       let textData;
       try {
         textData = JSON.parse(rawText);
       } catch (parseError: any) {
-        console.error("JSON Parse Error. Raw Text:", rawText.substring(0, 500) + "...");
-        throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+        throw new Error(`Failed to parse JSON response.`);
       }
       
       if (!textData.definition) throw new Error("Failed to generate text data");
 
       // 2. GENERATE IMAGE (Gemini 3 Pro Image)
-      onLog(`🎨 Painting illustration (Ghibli style)...`);
+      onLog(`🎨 Painting illustration...`);
       const imageContext = textData.examples?.[0]?.dutch || term;
       const imgPrompt = `Studio Ghibli style illustration of: "${imageContext}". Key object: "${term}". Relaxed, detailed, vibrant colors.`;
       
@@ -227,30 +190,25 @@ export const processBatch = async (
         
         if (base64Img) {
           const rawBytes = base64ToUint8Array(base64Img);
-          if (rawBytes && rawBytes.length > 0) {
+          if (rawBytes) {
               const blob = new Blob([rawBytes], { type: 'image/png' });
               const fileName = `images/${term}_ghibli_${Date.now()}.png`;
               const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
-              if (upErr) {
-                 if (upErr.message.includes("Bucket not found")) {
-                    throw new Error("Bucket 'dictionary-assets' not found.");
-                 }
-                 throw upErr;
+              if (!upErr) {
+                 const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+                 publicImgUrl = urlData.publicUrl;
+                 onLog(`✅ Image uploaded.`);
               }
-              const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
-              publicImgUrl = urlData.publicUrl;
-              onLog(`✅ Image uploaded.`);
           }
         }
       } catch (imgErr: any) {
         onLog(`⚠️ Image failed: ${imgErr.message}`);
       }
 
-      // 3. GENERATE AUDIO (TTS) & UPLOAD - RAW PCM -> WAV
+      // 3. GENERATE AUDIO (TTS)
       const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
         try {
-          if (!text || text.length === 0) return null;
-          
+          if (!text) return null;
           const ttsResp = await ai.models.generateContent({
             model: "gemini-2.5-flash-preview-tts",
             contents: [{ parts: [{ text }] }],
@@ -259,41 +217,26 @@ export const processBatch = async (
               speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
             },
           });
-          
           const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-          
           if (audioBase64) {
              const pcmData = base64ToUint8Array(audioBase64);
-             
-             if (pcmData && pcmData.length > 0) {
-                 // Convert Raw PCM to WAV
+             if (pcmData) {
                  const wavBlob = createWavFile(pcmData);
-                 
-                 // Save as .wav
                  const fileName = `${pathPrefix}/${term}_${Date.now()}.wav`; 
                  const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, wavBlob, { contentType: 'audio/wav' });
-                 
-                 if (upErr) {
-                    console.warn(`Failed to upload TTS for ${text.substring(0, 10)}...`, upErr);
-                    return null;
+                 if (!upErr) {
+                    const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+                    return urlData.publicUrl;
                  }
-                 
-                 const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
-                 return urlData.publicUrl;
              }
           }
-        } catch (e) { 
-            console.warn("TTS Gen Error:", e);
-            return null; 
-        }
+        } catch (e) { return null; }
         return null;
       };
 
-      onLog(`🗣️ Generating Audio (TTS)...`);
+      onLog(`🗣️ Generating Audio...`);
       const wordAudioUrl = await generateAndUploadTTS(term, 'audio/words');
-      
-      // Small pause to prevent rate limiting
-      await sleep(1000); 
+      await sleep(500);
       const usageAudioUrl = await generateAndUploadTTS(textData.usageNote, `audio/notes_${targetLangCode}`);
       
       const exampleAudioUrls: string[] = [];
@@ -305,8 +248,8 @@ export const processBatch = async (
         }
       }
 
-      // 4. INSERT INTO DATABASE
-      onLog(`💾 Saving to Database (${targetLangCode})...`);
+      // 4. SAVE TO DB
+      onLog(`💾 Saving to Database...`);
       
       const { data: wordRow, error: wordErr } = await supabase
         .from('words')
@@ -333,14 +276,12 @@ export const processBatch = async (
       if (textData.examples) {
         let idx = 0;
         for (const ex of textData.examples) {
-          const translationText = ex.translation || (ex as any).english || (ex as any).chinese || "";
-          
           await supabase.from('examples').upsert({
             word_id: wordId,
             language_code: targetLangCode,
             sentence_index: idx,
             dutch_sentence: ex.dutch,
-            translation: translationText,
+            translation: ex.translation,
             audio_url: exampleAudioUrls[idx]
           }, { onConflict: 'word_id, language_code, sentence_index' });
           idx++;
