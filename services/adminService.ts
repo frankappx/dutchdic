@@ -57,7 +57,12 @@ export const processBatch = async (
         {
           "definition": "English definition",
           "partOfSpeech": "zn. / ww. / bn.",
-          "grammar_data": { "plural": "...", "conjugations": {...}, "synonyms": ["nl word"] },
+          "grammar_data": { 
+             "plural": "huizen (if noun)", 
+             "article": "de/het (if noun)",
+             "verbForms": "lopen - liep - gelopen (if verb)", 
+             "synonyms": ["nl word"] 
+          },
           "usageNote": "Fun tip in English",
           "examples": [
             { "dutch": "Dutch sentence 1", "english": "English translation 1" },
@@ -76,7 +81,16 @@ export const processBatch = async (
             properties: {
               definition: { type: Type.STRING },
               partOfSpeech: { type: Type.STRING },
-              grammar_data: { type: Type.OBJECT, properties: {} },
+              grammar_data: { 
+                type: Type.OBJECT, 
+                properties: {
+                  plural: { type: Type.STRING },
+                  article: { type: Type.STRING },
+                  verbForms: { type: Type.STRING },
+                  synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
+                }
+              },
               usageNote: { type: Type.STRING },
               examples: {
                 type: Type.ARRAY,
@@ -125,7 +139,6 @@ export const processBatch = async (
       }
 
       // 3. GENERATE AUDIO (TTS) & UPLOAD
-      // Helper to generate and upload TTS
       const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
         try {
           const ttsResp = await ai.models.generateContent({
@@ -138,13 +151,8 @@ export const processBatch = async (
           });
           const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
           if (audioBase64) {
-             const blob = base64ToBlob(audioBase64, 'audio/mp3'); // Raw PCM usually, but browser treats blob broadly. Ideally convert to MP3, but raw upload works for simple playback if MIME is set right or just stored. 
-             // Note: Gemini returns raw PCM/WAV usually. For simplicity in this script we assume the browser/audio tag can handle the container or we upload as is.
-             // Actually Gemini API returns raw audio bytes. Let's save as .mp3 for URL sake, but content is PCM.
-             // A better approach for production is using a proper wav container header, but for this demo:
-             // We will skip complex wav header encoding in browser JS for brevity.
-             // We will try uploading with 'audio/mpeg' (mp3) or 'audio/wav'.
-             const fileName = `${pathPrefix}/${term}_${Date.now()}.wav`; // Use wav
+             const blob = base64ToBlob(audioBase64, 'audio/wav');
+             const fileName = `${pathPrefix}/${term}_${Date.now()}.wav`; 
              const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'audio/wav' });
              if (!upErr) {
                const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
