@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
@@ -180,12 +181,18 @@ export const generateDefinition = async (
           audioUrl: ex.audio_url // Map audio_url -> audioUrl
         }));
 
+        // Merge DB part_of_speech into grammar object
+        const mergedGrammar = {
+          ...(data.grammar_data || {}),
+          partOfSpeech: data.part_of_speech
+        };
+
         return {
           term: data.term,
           definition: data.definition,
           examples: mappedExamples,
           usageNote: data.usage_note,
-          grammar: data.grammar_data,
+          grammar: mergedGrammar,
           imageUrl: dbImageUrl,
           audioUrl: data.pronunciation_audio_url // Map pronunciation_audio_url -> audioUrl
         };

@@ -126,7 +126,7 @@ export const processBatch = async (
         2. Definition: Max 15 words. Concise.
         3. Usage Note: Max 2 sentences (approx 20 words). Fun/Casual tone.
         4. Examples: Exactly 2 examples.
-        5. Synonyms/Antonyms: Max 5 items each.
+        5. Synonyms/Antonyms: Max 5 items each. TRY TO PROVIDE AT LEAST 1 IF POSSIBLE.
         6. OUTPUT: Pure JSON only.
 
         Output Format (JSON):
