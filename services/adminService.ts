@@ -20,11 +20,22 @@ const base64ToBlob = (base64: string, mimeType: string) => {
   return new Blob([byteArray], { type: mimeType });
 };
 
+const getLanguageName = (code: string) => {
+  const map: Record<string, string> = {
+    'en': 'English', 'zh': 'Chinese (Simplified)', 'es': 'Spanish', 
+    'fr': 'French', 'de': 'German', 'ja': 'Japanese', 
+    'ko': 'Korean', 'pt': 'Portuguese', 'ru': 'Russian', 
+    'ar': 'Arabic', 'nl': 'Dutch', 'uk': 'Ukrainian', 'pl': 'Polish'
+  };
+  return map[code] || 'English';
+};
+
 export const processBatch = async (
   words: string[],
   serviceRoleKey: string,
   apiKey: string,
   supabaseUrl: string,
+  targetLangCode: string,
   onLog: (msg: string) => void
 ) => {
   if (!serviceRoleKey || !supabaseUrl || !apiKey) {
@@ -35,8 +46,10 @@ export const processBatch = async (
   // Initialize Clients
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const ai = new GoogleGenAI({ apiKey });
+  const targetLangName = getLanguageName(targetLangCode);
 
   onLog(`🚀 Starting batch process for ${words.length} words...`);
+  onLog(`🌍 Generating content for: ${targetLangName} (${targetLangCode})`);
   onLog(`⏱️ Speed limit: 1 word every ${DELAY_BETWEEN_WORDS_MS/1000}s to protect API quota.`);
 
   for (let i = 0; i < words.length; i++) {
@@ -51,23 +64,24 @@ export const processBatch = async (
       onLog(`📝 Generating definitions...`);
       const prompt = `
         Analyze the Dutch word "${term}".
-        Target Language: Dutch (nl). Source Language: English (en).
+        Target Language (Learning): Dutch (nl). 
+        Source Language (Translation): ${targetLangName} (${targetLangCode}).
         
         Strictly return JSON:
         {
-          "definition": "English definition",
+          "definition": "Definition strictly in ${targetLangName}",
           "partOfSpeech": "zn. / ww. / bn.",
           "grammar_data": { 
-             "plural": "huizen (if noun)", 
+             "plural": "huizen (if noun, in Dutch)", 
              "article": "de/het (if noun)",
-             "verbForms": "lopen - liep - gelopen (if verb)", 
-             "synonyms": ["nl word"],
-             "antonyms": ["nl word"]
+             "verbForms": "lopen - liep - gelopen (if verb, in Dutch)", 
+             "synonyms": ["Dutch word 1", "Dutch word 2"],
+             "antonyms": ["Dutch word 1"]
           },
-          "usageNote": "Fun tip in English",
+          "usageNote": "Fun tip strictly in ${targetLangName}",
           "examples": [
-            { "dutch": "Dutch sentence 1", "english": "English translation 1" },
-            { "dutch": "Dutch sentence 2", "english": "English translation 2" }
+            { "dutch": "Dutch sentence 1", "translation": "Translation in ${targetLangName}" },
+            { "dutch": "Dutch sentence 2", "translation": "Translation in ${targetLangName}" }
           ]
         }
       `;
@@ -99,7 +113,7 @@ export const processBatch = async (
                   type: Type.OBJECT,
                   properties: {
                     dutch: { type: Type.STRING },
-                    english: { type: Type.STRING }
+                    translation: { type: Type.STRING } // Using generic 'translation' key to avoid casing issues
                   }
                 }
               }
@@ -108,7 +122,6 @@ export const processBatch = async (
         }
       });
       
-      // FIX: Use .text property (not method) and strip Markdown
       let rawText = textResp.text || "{}";
       rawText = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
       
@@ -118,7 +131,9 @@ export const processBatch = async (
 
       // 2. GENERATE IMAGE (Gemini 3 Pro Image - High Quality)
       onLog(`🎨 Painting illustration (Ghibli style)...`);
-      const imgPrompt = `Studio Ghibli style illustration of: ${textData.examples?.[0]?.dutch || term}. Key object: ${term}. Relaxed, detailed, vibrant colors.`;
+      // Use the Dutch example for image context
+      const imageContext = textData.examples?.[0]?.dutch || term;
+      const imgPrompt = `Studio Ghibli style illustration of: "${imageContext}". Key object: "${term}". Relaxed, detailed, vibrant colors.`;
       
       let publicImgUrl = null;
       try {
@@ -134,7 +149,12 @@ export const processBatch = async (
           const blob = base64ToBlob(base64Img, 'image/png');
           const fileName = `images/${term}_ghibli_${Date.now()}.png`;
           const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
-          if (upErr) throw upErr;
+          if (upErr) {
+             if (upErr.message.includes("Bucket not found")) {
+                throw new Error("Bucket 'dictionary-assets' not found. Please create it in Supabase > Storage (Public).");
+             }
+             throw upErr;
+          }
           
           const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
           publicImgUrl = urlData.publicUrl;
@@ -171,7 +191,7 @@ export const processBatch = async (
 
       onLog(`🗣️ Generating Audio (TTS)...`);
       const wordAudioUrl = await generateAndUploadTTS(term, 'audio/words');
-      const usageAudioUrl = await generateAndUploadTTS(textData.usageNote, 'audio/notes');
+      const usageAudioUrl = await generateAndUploadTTS(textData.usageNote, `audio/notes_${targetLangCode}`);
       
       const exampleAudioUrls: string[] = [];
       if (textData.examples) {
@@ -182,9 +202,9 @@ export const processBatch = async (
       }
 
       // 4. INSERT INTO DATABASE
-      onLog(`💾 Saving to Database...`);
+      onLog(`💾 Saving to Database (${targetLangCode})...`);
       
-      // Upsert Word
+      // Upsert Word (Language Neutral)
       const { data: wordRow, error: wordErr } = await supabase
         .from('words')
         .upsert({ 
@@ -199,36 +219,39 @@ export const processBatch = async (
       if (wordErr) throw wordErr;
       const wordId = wordRow.id;
 
-      // Upsert Localized Content (English)
+      // Upsert Localized Content (Specific Language)
       await supabase.from('localized_content').upsert({
         word_id: wordId,
-        language_code: 'en',
+        language_code: targetLangCode, // Use the selected language
         definition: textData.definition,
         usage_note: textData.usageNote,
         usage_note_audio_url: usageAudioUrl
       }, { onConflict: 'word_id, language_code' });
 
-      // Upsert Examples
+      // Upsert Examples (Specific Language)
       if (textData.examples) {
         let idx = 0;
         for (const ex of textData.examples) {
+          // Robust check for translation keys
+          const translationText = ex.translation || (ex as any).english || (ex as any).chinese || "";
+          
           await supabase.from('examples').upsert({
             word_id: wordId,
-            language_code: 'en',
+            language_code: targetLangCode, // Use the selected language
             sentence_index: idx,
             dutch_sentence: ex.dutch,
-            translation: ex.english,
+            translation: translationText,
             audio_url: exampleAudioUrls[idx]
           }, { onConflict: 'word_id, language_code, sentence_index' });
           idx++;
         }
       }
 
-      // Upsert Image
+      // Upsert Image (Language Neutral - attached to word)
       if (publicImgUrl) {
         await supabase.from('word_images').upsert({
           word_id: wordId,
-          style: 'ghibli',
+          style: 'ghibli', // Currently fixed to Ghibli, can be dynamic later
           image_url: publicImgUrl
         }, { onConflict: 'word_id, style' });
       }

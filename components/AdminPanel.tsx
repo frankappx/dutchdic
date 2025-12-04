@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { processBatch } from '../services/adminService';
+import { LANGUAGES } from '../constants';
 
 interface AdminPanelProps {
   onBack: () => void;
@@ -14,6 +15,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   
+  const [targetLang, setTargetLang] = useState('en'); // Default to English
   const [wordInput, setWordInput] = useState('');
   const [logs, setLogs] = useState<string[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -60,9 +62,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     }
 
     setIsProcessing(true);
-    setLogs(["Started batch process..."]);
+    setLogs([`Started batch process for language: ${targetLang}...`]);
     
-    await processBatch(words, serviceKey, apiKey, supabaseUrl, addLog);
+    await processBatch(words, serviceKey, apiKey, supabaseUrl, targetLang, addLog);
     
     setIsProcessing(false);
   };
@@ -124,7 +126,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm">
-              <h2 className="font-bold mb-4 text-gray-700">2. Word List</h2>
+              <h2 className="font-bold mb-4 text-gray-700">2. Configuration</h2>
+              <div className="mb-4">
+                 <label className="text-xs font-bold text-gray-400 block mb-1">Generate for Language (Target)</label>
+                 <select 
+                    value={targetLang} 
+                    onChange={e => setTargetLang(e.target.value)}
+                    className="w-full bg-gray-50 border p-2 rounded text-sm font-bold text-pop-purple"
+                 >
+                    {LANGUAGES.map(l => (
+                      <option key={l.code} value={l.code}>{l.name} {l.flag}</option>
+                    ))}
+                 </select>
+              </div>
+
+              <h2 className="font-bold mb-2 text-gray-700">3. Word List</h2>
               <textarea 
                 value={wordInput}
                 onChange={e => setWordInput(e.target.value)}
