@@ -30,7 +30,8 @@ const Flashcard: React.FC<FlashcardProps> = ({ entry, enableSfx, labels }) => {
     if (isLoadingAudio) return;
 
     setIsLoadingAudio(true);
-    await playTTS(entry.term);
+    // FIX: Pass entry.audioUrl to prioritize DB audio over API generation
+    await playTTS(entry.term, entry.audioUrl);
     setIsLoadingAudio(false);
   };
 
