@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry } from '../types';
 import { playTTS, initAudio, playSuccessSound, playErrorSound } from '../services/geminiService';
@@ -31,59 +29,45 @@ interface ResultViewProps {
   };
 }
 
-// Helper to check if a grammar field is valid (not null/undefined/empty string/"null")
 const isValid = (text?: string | null) => {
   if (!text) return false;
   const t = text.trim().toLowerCase();
   return t !== 'null' && t !== 'undefined' && t !== 'n/a' && t !== 'none' && t !== '';
 };
 
-// Helper to normalize text for comparison (remove punctuation, lower case)
 const cleanText = (text: string) => text.toLowerCase().replace(/[^\w\s]|_/g, "").replace(/\s+/g, " ").trim();
 
 const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSaved, sourceLang, targetLang, labels }) => {
   
-  // Audio state (Cache is now global in service)
   const [loadingAudio, setLoadingAudio] = useState<string | null>(null);
-
-  // Pronunciation Practice State
   const [isListening, setIsListening] = useState(false);
   const [practiceFeedback, setPracticeFeedback] = useState<'idle' | 'listening' | 'correct' | 'incorrect'>('idle');
   const [heardText, setHeardText] = useState('');
-  
-  // Error Modal State
   const [showMicModal, setShowMicModal] = useState(false);
-
-  // Share feedback state
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
 
-  const handleAudio = async (text: string, id: string) => {
-    if (loadingAudio) return; // Prevent multiple clicks
+  // UPDATED: Accept optional audioUrl from DB
+  const handleAudio = async (text: string, id: string, audioUrl?: string) => {
+    if (loadingAudio) return;
 
-    // UI Loading state
     setLoadingAudio(id);
-    
-    // Call robust service (handles context, caching, fetching)
-    await playTTS(text);
-    
+    // Pass the audioUrl (if any) to the service. 
+    // The service will prefer playing this URL over generating new TTS.
+    await playTTS(text, audioUrl);
     setLoadingAudio(null);
   };
 
   const handlePracticePronunciation = () => {
-    // Check browser support
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      // For browser incompatibility, we might still want a simple alert or just do nothing, 
-      // but let's stick to the modal for uniformity if we want.
-      // But usually this means the browser is too old or Firefox (needs config).
       alert("Browser not supported for speech recognition. Please use Chrome/Edge/Safari.");
       return;
     }
 
-    initAudio(); // Initialize audio context for sounds
+    initAudio();
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'nl-NL'; // Target Dutch
+    recognition.lang = 'nl-NL';
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
@@ -95,7 +79,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
 
     recognition.onend = () => {
       setIsListening(false);
-      // If we didn't get a result but ended, revert to idle unless we set feedback
       if (practiceFeedback === 'listening') {
          setPracticeFeedback('idle');
       }
@@ -108,7 +91,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
       const normalizedTranscript = cleanText(transcript);
       const normalizedTarget = cleanText(entry.term);
 
-      // Simple fuzzy match check
       if (normalizedTranscript.includes(normalizedTarget) || normalizedTarget.includes(normalizedTranscript)) {
         setPracticeFeedback('correct');
         playSuccessSound();
@@ -122,8 +104,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
       setIsListening(false);
       setPracticeFeedback('idle');
       console.warn("Speech Recognition Error:", event.error);
-      
-      // Specifically handle permission denied
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setShowMicModal(true);
       }
@@ -138,39 +118,32 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
 
   const handleShare = async () => {
     const shareText = `LingoPop Dictionary 🌍\n\nWord: ${entry.term}\nMeaning: ${entry.definition}\n\nTip: ${entry.usageNote}`;
-    
     if (navigator.share) {
       try {
         await navigator.share({
           title: `LingoPop: ${entry.term}`,
           text: shareText,
         });
-      } catch (err) {
-        console.warn("Share canceled");
-      }
+      } catch (err) {}
     } else {
-      // Fallback to clipboard
       try {
         await navigator.clipboard.writeText(shareText);
         setShowCopyFeedback(true);
         setTimeout(() => setShowCopyFeedback(false), 2000);
-      } catch (err) {
-        console.warn("Clipboard failed");
-      }
+      } catch (err) {}
     }
   };
 
   return (
     <div className="pb-24 animate-fade-in relative">
-      {/* Header / Term */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-4">
         <div className="flex justify-between items-start mb-4">
           <div>
-            {/* Display term in lowercase to match dictionary style */}
             <h1 className="text-4xl font-black text-pop-dark tracking-tight mb-2">{entry.term.toLowerCase()}</h1>
             <div className="flex flex-wrap gap-2 items-center mb-3">
                <button 
-                onClick={() => handleAudio(entry.term, 'term')}
+                // Pass entry.audioUrl here
+                onClick={() => handleAudio(entry.term, 'term', entry.audioUrl)}
                 className="inline-flex items-center gap-2 px-3 py-1 bg-pop-yellow rounded-full text-xs font-bold shadow-sm active:scale-95 transition-transform text-pop-dark"
                >
                  {loadingAudio === 'term' ? (
@@ -181,7 +154,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                  {labels.pronounce}
                </button>
 
-               {/* Pronunciation Practice Button */}
                <button 
                   onClick={handlePracticePronunciation}
                   disabled={isListening}
@@ -193,7 +165,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                   {isListening ? labels.listening : labels.practice}
                </button>
 
-               {/* Part of Speech & Gender Badges */}
                {isValid(entry.grammar?.partOfSpeech) && (
                  <span className="inline-flex items-center px-2 py-1 bg-gray-100 text-gray-600 rounded-md text-xs font-bold font-mono">
                    {entry.grammar!.partOfSpeech}
@@ -206,23 +177,17 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                )}
             </div>
 
-            {/* Pronunciation Feedback Area */}
             {practiceFeedback !== 'idle' && practiceFeedback !== 'listening' && (
               <div className={`mt-2 mb-2 p-2 rounded-lg text-sm flex items-center gap-2 ${
                 practiceFeedback === 'correct' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
               }`}>
-                 {practiceFeedback === 'correct' ? (
-                    <i className="fa-solid fa-circle-check"></i>
-                 ) : (
-                    <i className="fa-solid fa-circle-xmark"></i>
-                 )}
+                 {practiceFeedback === 'correct' ? <i className="fa-solid fa-circle-check"></i> : <i className="fa-solid fa-circle-xmark"></i>}
                  <div>
                     <span className="font-bold">{practiceFeedback === 'correct' ? labels.feedbackCorrect : labels.feedbackIncorrect}</span>
                     {heardText && <span className="ml-1 opacity-80">- {labels.heard} "{heardText}"</span>}
                  </div>
               </div>
             )}
-
           </div>
           <div className="flex gap-3 relative">
             {showCopyFeedback && (
@@ -234,7 +199,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
               onClick={handleShare}
               className="w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all shadow-sm bg-gray-100 text-gray-500 hover:bg-gray-200"
               title="Share"
-              aria-label="Share"
             >
               <i className="fa-solid fa-share-nodes"></i>
             </button>
@@ -242,17 +206,14 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
               onClick={() => onSave(entry)}
               className={`w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all shadow-sm ${isSaved ? 'bg-pop-pink text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
               title="Save to Notebook"
-              aria-label={isSaved ? "Remove from notebook" : "Save to notebook"}
             >
               <i className={`fa-solid ${isSaved ? 'fa-heart' : 'fa-bookmark'}`}></i>
             </button>
           </div>
         </div>
 
-        {/* GRAMMAR & MORPHOLOGY SECTION */}
         {entry.grammar && (
           <div className="mb-6 space-y-3">
-             {/* Plural */}
              {isValid(entry.grammar.plural) && (
                <div className="flex gap-2 text-sm">
                  <span className="text-gray-400 font-bold uppercase tracking-wide w-20 flex-shrink-0">{labels.plural || "Plural"}:</span>
@@ -260,7 +221,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                </div>
              )}
              
-             {/* Verbs */}
              {isValid(entry.grammar.verbForms) && (
                <div className="flex gap-2 text-sm">
                  <span className="text-gray-400 font-bold uppercase tracking-wide w-20 flex-shrink-0">{labels.forms || "Forms"}:</span>
@@ -268,7 +228,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                </div>
              )}
 
-             {/* Adjectives */}
              {isValid(entry.grammar.adjectiveForms) && (
                <div className="flex gap-2 text-sm">
                  <span className="text-gray-400 font-bold uppercase tracking-wide w-20 flex-shrink-0">{labels.forms || "Forms"}:</span>
@@ -276,7 +235,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                </div>
              )}
 
-             {/* Synonyms */}
              {entry.grammar.synonyms && entry.grammar.synonyms.length > 0 && (
                <div className="flex gap-2 text-sm">
                  <span className="text-gray-400 font-bold uppercase tracking-wide w-20 flex-shrink-0">{labels.synonyms || "Synonyms"}:</span>
@@ -288,7 +246,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                </div>
              )}
 
-             {/* Antonyms */}
              {entry.grammar.antonyms && entry.grammar.antonyms.length > 0 && (
                <div className="flex gap-2 text-sm">
                  <span className="text-gray-400 font-bold uppercase tracking-wide w-20 flex-shrink-0">{labels.antonyms || "Antonyms"}:</span>
@@ -302,10 +259,8 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
           </div>
         )}
 
-        {/* Image - Full Width Bleed (-mx-6) */}
         {entry.imageUrl ? (
           <div className="-mx-6 mb-6 overflow-hidden shadow-sm border-t border-b border-gray-100">
-            {/* CHANGED: Use aspect-[2/1] for 2:1 ratio as requested, with object-cover to crop the 16:9 source */}
             <img 
                src={entry.imageUrl.startsWith('http') ? entry.imageUrl : `data:image/png;base64,${entry.imageUrl}`} 
                alt={entry.term} 
@@ -319,12 +274,10 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
           </div>
         ) : null}
 
-        {/* Definition */}
         <div className="prose prose-lg mb-6">
           <p className="text-xl font-medium text-pop-dark leading-relaxed">{entry.definition}</p>
         </div>
 
-        {/* Examples */}
         <div className="space-y-3 mb-6">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{labels.examples}</h3>
           {entry.examples.map((ex, idx) => (
@@ -332,7 +285,8 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
               <div className="flex justify-between items-start gap-2 mb-2">
                 <p className="text-pop-purple font-semibold text-lg leading-tight">{ex.target}</p>
                 <button 
-                  onClick={() => handleAudio(ex.target, `ex-${idx}`)} 
+                  // Pass example audioUrl here
+                  onClick={() => handleAudio(ex.target, `ex-${idx}`, ex.audioUrl)} 
                   className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-pop-purple shadow-sm hover:scale-110 transition-transform shrink-0 ml-2"
                   aria-label="Listen to example"
                 >
@@ -343,7 +297,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                   )}
                 </button>
               </div>
-              {/* Only show translation if it exists, isn't empty, and isn't identical to target */}
               {ex.source && ex.source.trim() !== '' && cleanText(ex.source) !== cleanText(ex.target) && (
                  <p className="text-gray-600 text-sm italic">{ex.source}</p>
               )}
@@ -351,7 +304,6 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
           ))}
         </div>
 
-        {/* Usage Note */}
         <div className="bg-pop-teal/10 p-5 rounded-2xl border border-pop-teal/20">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-pop-teal font-bold text-sm uppercase tracking-wider">
@@ -373,14 +325,12 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
         </div>
       </div>
 
-      {/* Custom Microphone Permission Modal */}
       {showMicModal && (
         <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl p-6 shadow-2xl max-w-sm w-full text-center relative">
             <button 
               onClick={() => setShowMicModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center"
-              aria-label="Close"
             >
               <i className="fa-solid fa-xmark text-xl"></i>
             </button>

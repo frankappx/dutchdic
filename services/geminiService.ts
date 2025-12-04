@@ -5,11 +5,8 @@ import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 import { supabase } from "./supabaseClient";
 
 // Initialize Gemini Client
-// Robustly retrieve API Key from various environment locations
 const getApiKey = () => {
   let key = '';
-
-  // 1. Try import.meta.env (Vite Standard)
   try {
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env) {
@@ -17,8 +14,6 @@ const getApiKey = () => {
       key = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.API_KEY || '';
     }
   } catch (e) {}
-
-  // 2. Try process.env (Node/Webpack/Vercel Legacy)
   if (!key) {
     try {
       if (typeof process !== 'undefined' && process.env) {
@@ -26,7 +21,6 @@ const getApiKey = () => {
       }
     } catch (e) {}
   }
-  
   return key;
 };
 
@@ -37,7 +31,6 @@ const ai = new GoogleGenAI({ apiKey });
 function decode(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
-  // CRITICAL FIX: Ensure even byte length for Int16Array
   const bytes = new Uint8Array(len + (len % 2));
   for (let i = 0; i < len; i++) {
     bytes[i] = binaryString.charCodeAt(i);
@@ -64,9 +57,7 @@ async function decodeAudioData(
   return buffer;
 }
 
-// Global Audio Context to prevent creation limit errors
 let sharedAudioContext: AudioContext | null = null;
-// Global Audio Cache to share TTS between Dictionary and Flashcards
 const globalAudioCache: Record<string, string> = {};
 
 const getAudioContext = () => {
@@ -76,73 +67,50 @@ const getAudioContext = () => {
   return sharedAudioContext;
 };
 
-// EXPORTED HELPER: Initialize/Resume Audio Context immediately on user click
 export const initAudio = async () => {
   try {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') {
       await ctx.resume();
     }
-  } catch (e) {
-    // Silent fail
-  }
+  } catch (e) {}
 };
 
-// Play a silent sound immediately to unlock audio on iOS/Safari/Chrome
 const playSilentOscillator = () => {
   try {
     const ctx = getAudioContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    
-    // Completely silent
     gain.gain.setValueAtTime(0, ctx.currentTime);
-    
     osc.connect(gain);
     gain.connect(ctx.destination);
-    
-    // Play for a very short time just to trigger the "running" state
     osc.start();
     osc.stop(ctx.currentTime + 0.01);
-  } catch (e) {
-    // Ignore
-  }
+  } catch (e) {}
 };
 
-// Synthesize a short "flip" sound effect
 export const playFlipSound = async () => {
   try {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
-
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-
-    // Create a quick frequency sweep/pop
     osc.frequency.setValueAtTime(300, ctx.currentTime);
     osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.15);
-    
-    // Envelope for a soft "thwip" sound
     gain.gain.setValueAtTime(0.05, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-
     osc.connect(gain);
     gain.connect(ctx.destination);
-
     osc.start();
     osc.stop(ctx.currentTime + 0.15);
-  } catch (e) {
-    // Silent fail if audio context issue
-  }
+  } catch (e) {}
 };
 
 export const playSuccessSound = async () => {
   try {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
-
     const now = ctx.currentTime;
-    // High pitched pleasant chord
     [523.25, 659.25, 783.99].forEach((freq, i) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -163,18 +131,14 @@ export const playErrorSound = async () => {
   try {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
-
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(150, now);
     osc.frequency.linearRampToValueAtTime(100, now + 0.3);
-    
     gain.gain.setValueAtTime(0.05, now);
     gain.gain.linearRampToValueAtTime(0, now + 0.3);
-
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start(now);
@@ -184,7 +148,6 @@ export const playErrorSound = async () => {
 
 // --- API Methods ---
 
-// UPDATED: Now returns 'imageUrl' if available in DB
 export const generateDefinition = async (
   term: string, 
   sourceLang: string, 
@@ -195,11 +158,11 @@ export const generateDefinition = async (
   // 1. SUPABASE CACHE LOOKUP (Via RPC)
   if (supabase) {
     try {
-      // Use the new 'get_word_details' RPC function which handles 
-      // case-insensitive matching (citext) and efficient querying
+      // Use the RPC function 'get_word_details' we created in SQL
+      // This handles citext (case-insensitivity) automatically
       const { data, error } = await supabase
         .rpc('get_word_details', { 
-          search_term: term, // 'citext' in DB handles the casing logic
+          search_term: term, 
           target_lang: getLangCode(sourceLang)
         })
         .maybeSingle();
@@ -209,20 +172,24 @@ export const generateDefinition = async (
         
         // Map DB View fields (snake_case) to Frontend Type fields (camelCase)
         const styles = data.images_by_style || {};
-        // Try preferred style first, then ghibli, then first available
         const dbImageUrl = styles[preferredStyle] || styles['ghibli'] || Object.values(styles)[0] || undefined;
+        
+        // Map Examples (fixing snake_case audio_url to audioUrl)
+        const mappedExamples = (data.examples || []).map((ex: any) => ({
+          target: ex.target,
+          source: ex.source,
+          audioUrl: ex.audio_url // Map audio_url -> audioUrl
+        }));
 
         return {
           term: data.term,
           definition: data.definition,
-          examples: data.examples || [],
-          usageNote: data.usage_note, // Map usage_note -> usageNote
-          grammar: data.grammar_data, // Map grammar_data -> grammar
-          imageUrl: dbImageUrl 
+          examples: mappedExamples,
+          usageNote: data.usage_note,
+          grammar: data.grammar_data,
+          imageUrl: dbImageUrl,
+          audioUrl: data.pronunciation_audio_url // Map pronunciation_audio_url -> audioUrl
         };
-      } else if (error) {
-        // Log RPC errors but don't crash app
-        console.warn("Supabase RPC error:", error);
       }
     } catch (dbError) {
       console.warn("Supabase lookup failed, falling back to Gemini", dbError);
@@ -231,10 +198,7 @@ export const generateDefinition = async (
 
   // 2. GEMINI FALLBACK
   try {
-    // Check for Monolingual Mode (e.g., Dutch -> Dutch)
     const isMonolingual = sourceLang === targetLang;
-    
-    // Instruction: If monolingual, we don't need a translation.
     const exampleInstruction = isMonolingual 
       ? "Leave this field as an empty string." 
       : `The translation in the Source Language (${sourceLang}).`;
@@ -271,102 +235,71 @@ export const generateDefinition = async (
          - antonyms: Array of strings STRICTLY in ${targetLang}.
     `;
 
-    // Helper to call API
-    const fetchDefinition = async (model: string) => {
-      return await ai.models.generateContent({
-        model: model,
-        contents: prompt,
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION_BASE,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              definition: { type: Type.STRING },
-              examples: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    target: { type: Type.STRING, description: `The sentence in ${targetLang}` },
-                    source: { type: Type.STRING, description: `The translation in ${sourceLang}` },
-                  }
-                }
-              },
-              usageNote: { type: Type.STRING },
-              grammar: {
+    console.log("Using text model: gemini-2.5-flash");
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION_BASE,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            definition: { type: Type.STRING },
+            examples: {
+              type: Type.ARRAY,
+              items: {
                 type: Type.OBJECT,
                 properties: {
-                  partOfSpeech: { type: Type.STRING, description: "zn., ww., bn., etc." },
-                  article: { type: Type.STRING, description: "de, het, etc." },
-                  plural: { type: Type.STRING },
-                  verbForms: { type: Type.STRING, description: "Conjugation string" },
-                  adjectiveForms: { type: Type.STRING, description: "Degrees of comparison" },
-                  synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
+                  target: { type: Type.STRING },
+                  source: { type: Type.STRING },
                 }
+              }
+            },
+            usageNote: { type: Type.STRING },
+            grammar: {
+              type: Type.OBJECT,
+              properties: {
+                partOfSpeech: { type: Type.STRING },
+                article: { type: Type.STRING },
+                plural: { type: Type.STRING },
+                verbForms: { type: Type.STRING },
+                adjectiveForms: { type: Type.STRING },
+                synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
+                antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
               }
             }
           }
         }
-      });
-    };
-
-    let response;
-    // HYBRID STRATEGY: Use Flash for Text (Low Latency)
-    console.log("Using text model: gemini-2.5-flash");
-    response = await fetchDefinition("gemini-2.5-flash");
+      }
+    });
 
     let text = response.text || "";
-    
-    // ROBUSTNESS FIX: Remove Markdown code blocks if present
     text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
 
     return JSON.parse(text);
   } catch (error) {
     console.error("Gemini API Error (generateDefinition):", error);
-    // Return NULL to signal failure so the UI can show the custom Error Modal
     return null;
   }
 };
 
-// --- Diverse Dutch Locations & Cultural Scenes for Image Generation ---
 const DUTCH_LOCATIONS = [
-  "Amsterdam's Canal Ring at twilight",
-  "Rijksmuseum",
-  "Windmills at Kinderdijk",
-  "Tulip fields in Lisse",
-  "Rotterdam Cube Houses",
-  "Utrecht Dom Tower",
-  "Giethoorn village canals",
-  "Delft Market Square",
-  "Gouda Cheese Market",
-  "Scheveningen Beach",
-  "Typical Dutch Brown Cafe",
-  "Cycling on a polder dike"
+  "Amsterdam's Canal Ring at twilight", "Rijksmuseum", "Windmills at Kinderdijk",
+  "Tulip fields in Lisse", "Rotterdam Cube Houses", "Utrecht Dom Tower",
+  "Giethoorn village canals", "Delft Market Square", "Gouda Cheese Market",
+  "Scheveningen Beach", "Typical Dutch Brown Cafe", "Cycling on a polder dike"
 ];
 
-// Helper to sanitize error messages for UI
 const cleanErrorMessage = (error: any): string => {
   const str = (error.message || error.toString() || "").toLowerCase();
-  
-  if (str.includes("429") || str.includes("quota") || str.includes("resource_exhausted")) {
-    return "Daily Image Quota Exceeded (429).";
-  }
-  if (str.includes("400") || str.includes("region") || str.includes("location")) {
-    return "Region Not Supported (400). Use US VPN.";
-  }
-  if (str.includes("403") || str.includes("permission") || str.includes("access")) {
-    return "Access Denied (403). Check API Key.";
-  }
-  if (str.includes("404") || str.includes("not found")) {
-    return "Image Model Not Found (404).";
-  }
-  
+  if (str.includes("429") || str.includes("quota")) return "Daily Image Quota Exceeded (429).";
+  if (str.includes("400") || str.includes("region")) return "Region Not Supported (400). Use US VPN.";
+  if (str.includes("403") || str.includes("permission")) return "Access Denied (403). Check API Key.";
+  if (str.includes("404")) return "Image Model Not Found (404).";
   return "Image generation failed.";
 };
 
-// UPDATED: Now returns an object with data OR error
 export const generateVisualization = async (
   term: string, 
   context: string, 
@@ -374,10 +307,6 @@ export const generateVisualization = async (
   imageContext: ImageContext = 'target',
   targetLang: string = 'the target language culture'
 ): Promise<{ data: string | null; error: string | null }> => {
-  
-  // OPTIONAL: We could also check DB for existing image here if we passed the word ID, 
-  // but generateDefinition already does that efficiently via the View.
-
   const stylePrompts: Record<string, string> = {
     cartoon: 'fun, energetic cartoon style',
     ghibli: 'Studio Ghibli anime style, detailed backgrounds, soft colors',
@@ -389,14 +318,11 @@ export const generateVisualization = async (
   const stylePrompt = stylePrompts[style] || stylePrompts['flat'];
   
   let contextPrompt = "";
-  if (true) {
-    if (targetLang.toLowerCase().includes('dutch') || targetLang.toLowerCase().includes('nederlands')) {
-       const randomLocation = DUTCH_LOCATIONS[Math.floor(Math.random() * DUTCH_LOCATIONS.length)];
-       const dutchVibe = "Atmosphere: Relaxed 'gezellig' vibe. Environment: typical red brick architecture, soft overcast sky.";
-       contextPrompt = `Set the scene in the Netherlands. Specific Setting: ${randomLocation}. ${dutchVibe}`;
-    } else {
-       contextPrompt = `Set the scene in a typical ${targetLang} cultural setting.`;
-    }
+  if (targetLang.toLowerCase().includes('dutch') || targetLang.toLowerCase().includes('nederlands')) {
+     const randomLocation = DUTCH_LOCATIONS[Math.floor(Math.random() * DUTCH_LOCATIONS.length)];
+     contextPrompt = `Set the scene in the Netherlands. Specific Setting: ${randomLocation}. Atmosphere: Relaxed 'gezellig' vibe.`;
+  } else {
+     contextPrompt = `Set the scene in a typical ${targetLang} cultural setting.`;
   }
 
   const prompt = `Create a ${stylePrompt} illustration based on the following sentence: "${context}".
@@ -406,10 +332,7 @@ export const generateVisualization = async (
     Ensure the image clearly depicts the action or object described.`;
 
   try {
-    // HYBRID STRATEGY: Use Pro for Images (High Quality)
     console.log("Using image model: gemini-3-pro-image-preview");
-    
-    // Note: If 'gemini-3-pro-image-preview' is not the valid ID, this will throw 404
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-image-preview',
       contents: { parts: [{ text: prompt }] },
@@ -428,7 +351,6 @@ export const generateVisualization = async (
   }
 };
 
-// Fetch TTS Audio Data (Base64)
 export const fetchTTS = async (text: string): Promise<string | null> => {
   try {
     console.log("Using TTS model: gemini-2.5-flash-preview-tts");
@@ -436,7 +358,7 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }],
       config: {
-        responseModalities: ['AUDIO' as any], // Use string to prevent Enum import issues
+        responseModalities: ['AUDIO' as any],
         speechConfig: {
           voiceConfig: {
             prebuiltVoiceConfig: { voiceName: 'Kore' }, 
@@ -446,62 +368,71 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
     });
     return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
   } catch (error) {
-    // Silent fail
     console.warn("TTS generation failed", error);
     return null;
   }
 };
 
-// Play Audio from Base64 String
-export const playAudio = async (base64Audio: string): Promise<void> => {
-  try {
-    const ctx = getAudioContext();
-    if (ctx.state === 'suspended') {
-      await ctx.resume();
-    }
-
+const playAudioBuffer = async (audioBuffer: AudioBuffer, ctx: AudioContext) => {
     const outputNode = ctx.createGain();
-    const audioBuffer = await decodeAudioData(
-      decode(base64Audio),
-      ctx,
-      24000,
-      1,
-    );
     const source = ctx.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(outputNode);
     outputNode.connect(ctx.destination);
     source.start();
+}
+
+export const playAudio = async (base64Audio: string): Promise<void> => {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') await ctx.resume();
+    const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
+    await playAudioBuffer(audioBuffer, ctx);
+  } catch (error) {}
+};
+
+// Play from URL (e.g., from Supabase Storage)
+export const playAudioFromUrl = async (url: string): Promise<void> => {
+  try {
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended') await ctx.resume();
+    
+    // Play sound from URL via HTML5 Audio to avoid CORS issues with Web Audio API for remote files
+    // or fetch and decode if CORS is configured correctly.
+    // Simple HTML5 Audio is safest for storage URLs.
+    const audio = new Audio(url);
+    await audio.play();
   } catch (error) {
-    // Silent fail
+    console.warn("Failed to play audio URL", error);
   }
 };
 
-// Enhanced wrapper for robust usage across app
-export const playTTS = async (text: string): Promise<void> => {
-  // 1. Immediately resume/init AudioContext (Must happen in click handler)
+export const playTTS = async (text: string, audioUrl?: string): Promise<void> => {
   await initAudio();
-  
-  // 2. Play silent oscillator to keep AudioContext active during potential fetch lag
   playSilentOscillator();
 
-  // 3. Check Global Cache
+  // 1. If DB Audio URL exists, prioritize it!
+  if (audioUrl) {
+    console.log("🔊 Playing from DB URL:", audioUrl);
+    await playAudioFromUrl(audioUrl);
+    return;
+  }
+
+  // 2. Check Global Cache
   if (globalAudioCache[text]) {
     await playAudio(globalAudioCache[text]);
     return;
   }
 
-  // 4. Fetch if missing
+  // 3. Fetch from API
   const data = await fetchTTS(text);
   if (data) {
-    globalAudioCache[text] = data; // Cache it
+    globalAudioCache[text] = data; 
     await playAudio(data);
   }
 };
 
-// Helper: Map Display Language Names to ISO codes for DB Lookup
 const getLangCode = (name: string): string => {
-  // Simple mapping based on your constants.ts
   if (name.includes("English")) return "en";
   if (name.includes("Chinese")) return "zh";
   if (name.includes("Spanish")) return "es";

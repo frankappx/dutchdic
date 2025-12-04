@@ -38,7 +38,8 @@ export interface DictionaryEntry {
   grammar?: GrammarDetails;
   examples: ExampleSentence[];
   usageNote: string;
-  imageUrl?: string; // Base64 string
+  imageUrl?: string; // Base64 string or URL
+  audioUrl?: string; // NEW: DB-provided pronunciation URL
   imageError?: string; // NEW: Store specific image generation error message
   timestamp: number;
 }
