@@ -398,6 +398,7 @@ export const processBatch = async (
                model: "gemini-2.5-flash-preview-tts",
                contents: [{ parts: [{ text }] }],
                config: {
+                 systemInstruction: "You are a native Dutch speaker. Pronounce the text strictly in Dutch.",
                  responseModalities: ['AUDIO' as any],
                  speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
                },

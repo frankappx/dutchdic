@@ -415,6 +415,7 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }],
       config: {
+        systemInstruction: "You are a native Dutch speaker. Pronounce the text strictly in Dutch.",
         responseModalities: ['AUDIO' as any],
         speechConfig: {
           voiceConfig: {
