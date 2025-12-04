@@ -223,7 +223,7 @@ export const generateDefinition = async (
          - 'target': The sentence in the Target Language (${targetLang}).
          - 'source': ${exampleInstruction}
          - IMPORTANT: Ensure examples are original.
-      3. usageNote: A casual, fun "friend-to-friend" usage note STRICTLY in ${sourceLang}. KEEP IT SHORT (Max 30 words).
+      3. usageNote: A casual, fun "friend-to-friend" usage note STRICTLY in ${sourceLang}. KEEP IT SHORT (Max 20 words).
       4. grammar: An object containing detailed grammatical data:
          - partOfSpeech: The abbreviation in ${targetLang} (e.g. 'zn.', 'ww.', 'bn.').
          - article: If noun, the article in ${targetLang} (e.g. 'de', 'het').
@@ -241,6 +241,7 @@ export const generateDefinition = async (
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_BASE,
         responseMimeType: "application/json",
+        maxOutputTokens: 2000, // Limit to prevent massive/truncated responses
         responseSchema: {
           type: Type.OBJECT,
           properties: {

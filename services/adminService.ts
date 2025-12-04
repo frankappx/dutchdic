@@ -90,6 +90,7 @@ export const processBatch = async (
         contents: prompt,
         config: {
           responseMimeType: "application/json",
+          maxOutputTokens: 2000, // Limit to prevent infinite loops/truncation
           responseSchema: {
             type: Type.OBJECT,
             properties: {
@@ -137,6 +138,7 @@ export const processBatch = async (
       try {
         textData = JSON.parse(rawText);
       } catch (parseError: any) {
+        console.error("JSON Parse Error. Raw Text:", rawText.substring(0, 500) + "...");
         throw new Error(`Failed to parse JSON response: ${parseError.message}`);
       }
       
