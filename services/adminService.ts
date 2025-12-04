@@ -4,7 +4,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ImageStyle } from '../types';
 
 // Configuration for rate limiting
-const DELAY_BETWEEN_WORDS_MS = 3000; 
+const DELAY_BETWEEN_WORDS_MS = 5000; 
 const STORAGE_BUCKET = 'dictionary-assets';
 
 export interface BatchConfig {
@@ -298,7 +298,10 @@ export const processBatch = async (
         };
         const stylePrompt = stylePrompts[config.imageStyle] || stylePrompts['ghibli'];
 
-        const imgPrompt = `Create a ${stylePrompt} illustration of: "${contextSentence}". Key object: "${term}". Ensure the image clearly depicts the meaning.`;
+        const imgPrompt = `Create a ${stylePrompt} illustration of: "${contextSentence}". Key object: "${term}". 
+        STRICT REQUIREMENTS:
+        1. Do NOT include any text, labels, words, or the sentence in the illustration. No speech bubbles.
+        2. The ONLY text allowed is a small, subtle watermark "@Parlolo" in the bottom right corner.`;
 
         try {
           const imgResp = await ai.models.generateContent({

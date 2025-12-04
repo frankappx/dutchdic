@@ -323,7 +323,10 @@ export const generateVisualization = async (
     Key object/concept to highlight: "${term}".
     Visualize the literal meaning of this sentence.
     ${contextPrompt}
-    Ensure the image clearly depicts the action or object described.`;
+    
+    STRICT REQUIREMENTS:
+    1. Do NOT include any text, labels, words, or the sentence in the illustration. No speech bubbles.
+    2. The ONLY text allowed is a small, subtle watermark "@Parlolo" in the bottom right corner.`;
 
   try {
     console.log("Using image model: gemini-3-pro-image-preview");
