@@ -417,7 +417,16 @@ export const processBatch = async (
                     }
                 }
              }
-           } catch (e) { return null; }
+           } catch (e: any) { 
+              // Explicitly log API errors but do NOT rethrow, so processBatch continues
+              const errMsg = e.message || e.toString();
+              if (errMsg.includes('429') || errMsg.includes('Quota')) {
+                  onLog(`   ⚠️ [TTS] Quota Exceeded (429). Skipping audio.`);
+              } else {
+                  onLog(`   ⚠️ [TTS] Generation failed: ${errMsg}`);
+              }
+              return null; 
+           }
            return null;
         };
 
