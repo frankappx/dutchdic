@@ -398,9 +398,10 @@ export const processBatch = async (
                model: "gemini-2.5-flash-preview-tts",
                contents: [{ parts: [{ text }] }],
                config: {
-                 systemInstruction: "You are a native Dutch speaker. Pronounce the text strictly in Dutch.",
+                 // STRONG Dutch enforcement for words like 'lamp' that exist in English
+                 systemInstruction: "You are a native Dutch speaker. Pronounce the text strictly in Dutch. ATTENTION: Many words look like English (e.g. lamp, hand, bed). You MUST pronounce them with Dutch vowels and intonation. Do not switch to English pronunciation.",
                  responseModalities: ['AUDIO' as any],
-                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } },
                },
              });
              const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
