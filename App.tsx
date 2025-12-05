@@ -204,15 +204,19 @@ export default function App() {
   }, [appSettings]);
 
   const handleSearch = async (termOverride?: string) => {
-    const termToSearch = termOverride || searchTerm;
-    if (!termToSearch.trim()) return;
+    const rawTerm = termOverride || searchTerm;
+    
+    // Force lowercase to ensure cache hits (e.g. "Lamp" -> "lamp")
+    const termToSearch = rawTerm ? rawTerm.trim().toLowerCase() : '';
 
-    const existingEntry = savedItems.find(item => item.term.toLowerCase() === termToSearch.toLowerCase());
+    if (!termToSearch) return;
+
+    const existingEntry = savedItems.find(item => item.term.toLowerCase() === termToSearch);
     
     if (existingEntry) {
       setCurrentEntry(existingEntry);
       setSearchHistory(prev => {
-        const newHistory = [termToSearch.toLowerCase(), ...prev.filter(t => t.toLowerCase() !== termToSearch.toLowerCase())].slice(0, 10);
+        const newHistory = [termToSearch, ...prev.filter(t => t.toLowerCase() !== termToSearch)].slice(0, 10);
         return newHistory;
       });
       setView('RESULT');
@@ -230,6 +234,7 @@ export default function App() {
     }
 
     setIsLoading(true);
+    // Update input to lowercased version while searching
     setSearchTerm(termToSearch); 
     setView('SEARCH');
     
@@ -267,7 +272,7 @@ export default function App() {
     setCurrentEntry(newEntry);
     
     setSearchHistory(prev => {
-      const newHistory = [termToSearch.toLowerCase(), ...prev.filter(t => t.toLowerCase() !== termToSearch.toLowerCase())].slice(0, 10);
+      const newHistory = [termToSearch, ...prev.filter(t => t.toLowerCase() !== termToSearch)].slice(0, 10);
       return newHistory;
     });
 
@@ -432,7 +437,7 @@ export default function App() {
                   onClick={() => handleSearch(s)} 
                   className="bg-white border border-gray-200 px-4 py-2 rounded-full hover:bg-gray-50 text-pop-dark font-medium transition-colors animate-fade-in"
                 >
-                  {s.toLowerCase()}
+                  {s}
                 </button>
               ))}
             </div>
@@ -475,7 +480,7 @@ export default function App() {
                        </div>
                      )}
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-bold text-lg truncate">{item.term.toLowerCase()}</h3>
+                      <h3 className="font-bold text-lg truncate">{item.term}</h3>
                       <p className="text-xs text-gray-400 whitespace-normal line-clamp-2">{item.definition}</p>
                     </div>
                   </div>

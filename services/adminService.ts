@@ -18,6 +18,60 @@ export interface BatchConfig {
   imageStyle: ImageStyle;
 }
 
+// Rich Dutch Cultural Contexts
+const DUTCH_BACKGROUNDS = [
+  // Iconic Cityscapes & Architecture
+  "Amsterdam Canal Ring at twilight with illuminated gable houses",
+  "Rijksmuseum with cyclists passing by in the foreground",
+  "Modern Rotterdam skyline featuring the Erasmus Bridge",
+  "Yellow Cube Houses in Rotterdam",
+  "Utrecht's Dom Tower overlooking the unique wharf cellars",
+  "The Binnenhof parliament buildings and Hofvijver lake in The Hague",
+  "Delft Market Square with the New Church and historic City Hall",
+  "Maastricht's Vrijthof square with ancient churches",
+  "Leiden's Molen de Valk (windmill in the city center)",
+  "Groningen Museum's colorful and eccentric modern architecture",
+  "Typical Dutch brick row houses with large windows",
+  
+  // Water Management & Windmills
+  "Historic windmills at Kinderdijk during a scenic sunset",
+  "Zaanse Schans with green wooden houses and working windmills",
+  "The massive Afsluitdijk causeway stretching across the sea",
+  "Giethoorn village with thatched roof farmhouses and canals",
+  "A classic white Dutch drawbridge opening for a sailboat",
+  "A steam pumping station (Woudagemaal) in a flat polder landscape",
+  "Houseboats docked along a city canal with flower pots on deck",
+  "A modern storm surge barrier (Delta Works)",
+  
+  // Nature & Agriculture
+  "Vibrant tulip fields in Lisse (springtime colors)",
+  "Rolling sand dunes along the North Sea coast with tall grass",
+  "Purple heather fields in Hoge Veluwe National Park",
+  "Texel island red lighthouse standing on a sandy beach",
+  "Friesian black-and-white cows grazing in a flat green meadow",
+  "A long straight dike road lined with tall trees",
+  "Orchards in blossom in the Betuwe region",
+  
+  // Dutch Lifestyle & Gezelligheid
+  "Inside a cozy 'Brown Café' with dark wooden interior and candles",
+  "People cycling in the rain with umbrellas (quintessential Dutch weather)",
+  "A massive multi-story bicycle parking garage near a train station",
+  "A bustling street market selling cheese rounds and fresh flowers",
+  "People eating raw herring at a street fish stall (Haringhandel)",
+  "Ice skating on a frozen canal with Koek-en-zopie stalls",
+  "A parent riding a 'Bakfiets' (cargo bike) with children and groceries",
+  "People relaxing on a sunny terrace (Terrasje pakken) in a city square",
+  "King's Day celebration with orange decorations and canal boats",
+  
+  // Modern & Diverse
+  "Modern architecture of Rotterdam Central Station",
+  "A multicultural street market in a Dutch city neighborhood",
+  "Commuters on a busy train platform during rush hour",
+  "Contemporary Dutch residential architecture in Almere",
+  "Students cycling to university in a historic town",
+  "A modern library converted from an old industrial building (LocHal)"
+];
+
 // Helper: Pause execution
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
@@ -343,9 +397,18 @@ export const processBatch = async (
           realistic: 'photorealistic, high detailed'
         };
         const stylePrompt = stylePrompts[config.imageStyle] || stylePrompts['ghibli'];
+        
+        // Pick a random cultural background
+        const randomBg = DUTCH_BACKGROUNDS[Math.floor(Math.random() * DUTCH_BACKGROUNDS.length)];
 
         // Updated Prompt: Removed Watermark instruction, focusing on NO TEXT.
         const imgPrompt = `Create a ${stylePrompt} illustration of: "${contextSentence}". Key object: "${term}". 
+        
+        SETTING & CONTEXT:
+        - Scene: ${randomBg}.
+        - Atmosphere: Authentic Netherlands.
+        - Characters: If people are shown, ensure a realistic and diverse representation of the Dutch population (including White, Black, Asian, and Middle Eastern backgrounds).
+        
         STRICT REQUIREMENTS:
         1. STRICTLY NO TEXT. Do not include any words, letters, labels, or speech bubbles in the image.
         2. The image should be pure visual art.`;
