@@ -206,7 +206,7 @@ const addWatermark = (base64Image: string): Promise<string> => {
 export const generateDefinition = async (
   term: string, 
   sourceLang: string, 
-  targetLang: string,
+  targetLang: string, 
   preferredStyle: string = 'ghibli'
 ): Promise<Omit<DictionaryEntry, 'id' | 'timestamp'> | null> => {
   
@@ -416,8 +416,8 @@ export const generateVisualization = async (
 
 // --- ELEVENLABS TTS ---
 
-// CHANGED: Use new Voice ID 'AyQGttFzg1EY7EIKkpHs' as requested.
-const ELEVENLABS_VOICE_ID = "AyQGttFzg1EY7EIKkpHs"; 
+// CHANGED: Use Standard Voice ID 'Rachel' (21m00Tcm4TlvDq8ikWAM) to avoid errors if custom voice limit is reached.
+const ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; 
 
 export const fetchTTS = async (text: string): Promise<string | null> => {
   if (!elevenLabsKey) {

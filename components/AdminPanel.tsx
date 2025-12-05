@@ -15,6 +15,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [geminiKey, setGeminiKey] = useState('');
   const [elevenLabsKey, setElevenLabsKey] = useState('');
+  const [voiceId, setVoiceId] = useState('AyQGttFzg1EY7EIKkpHs'); // Default to user's requested ID
   
   const [targetLang, setTargetLang] = useState('en'); // Default to English
   const [wordInput, setWordInput] = useState('');
@@ -79,6 +80,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       alert("Please enter the Supabase Service Role Key");
       return;
     }
+    if (!voiceId) {
+      alert("Please enter a Voice ID");
+      return;
+    }
     const words = wordInput.split('\n').filter(w => w.trim().length > 0);
     if (words.length === 0) {
       alert("Please enter at least one word");
@@ -106,7 +111,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       overwriteAudio
     };
 
-    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, supabaseUrl, targetLang, config, addLog);
+    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, voiceId, supabaseUrl, targetLang, config, addLog);
     
     setIsProcessing(false);
   };
@@ -177,17 +182,33 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
             <div className="bg-white p-6 rounded-2xl shadow-sm border-2 border-pop-purple/10">
               <h2 className="font-bold mb-4 text-gray-700">2. Task Configuration</h2>
               
-              <div className="mb-6">
-                 <label className="text-xs font-bold text-gray-400 block mb-2">Target Language (Definitions)</label>
-                 <select 
-                    value={targetLang} 
-                    onChange={e => setTargetLang(e.target.value)}
-                    className="w-full bg-gray-50 border p-2 rounded-lg text-sm font-bold text-pop-purple"
-                 >
-                    {LANGUAGES.map(l => (
-                      <option key={l.code} value={l.code}>{l.name} {l.flag}</option>
-                    ))}
-                 </select>
+              <div className="mb-6 space-y-4">
+                 <div>
+                   <label className="text-xs font-bold text-gray-400 block mb-2">Target Language (Definitions)</label>
+                   <select 
+                      value={targetLang} 
+                      onChange={e => setTargetLang(e.target.value)}
+                      className="w-full bg-gray-50 border p-2 rounded-lg text-sm font-bold text-pop-purple"
+                   >
+                      {LANGUAGES.map(l => (
+                        <option key={l.code} value={l.code}>{l.name} {l.flag}</option>
+                      ))}
+                   </select>
+                 </div>
+
+                 <div>
+                   <label className="text-xs font-bold text-gray-400 block mb-2">ElevenLabs Voice ID</label>
+                   <input 
+                     type="text" 
+                     value={voiceId} 
+                     onChange={e => setVoiceId(e.target.value)} 
+                     placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
+                     className="w-full bg-gray-50 border p-2 rounded-lg text-sm font-mono text-pop-teal"
+                   />
+                   <p className="text-[10px] text-gray-400 mt-1">
+                     Try "21m00Tcm4TlvDq8ikWAM" (Rachel) if your custom voice limit is reached.
+                   </p>
+                 </div>
               </div>
 
               <div className="space-y-4 mb-6">

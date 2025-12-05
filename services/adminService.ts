@@ -148,14 +148,12 @@ const getLanguageName = (code: string) => {
   return map[code] || 'English';
 };
 
-// CHANGED: Use new Voice ID 'AyQGttFzg1EY7EIKkpHs' as requested.
-const ELEVENLABS_VOICE_ID = "AyQGttFzg1EY7EIKkpHs"; 
-
 export const processBatch = async (
   words: string[],
   serviceRoleKey: string,
   geminiKey: string,
   elevenLabsKey: string,
+  elevenLabsVoiceId: string, // UPDATED: Accept Voice ID as argument
   supabaseUrl: string,
   targetLangCode: string,
   config: BatchConfig,
@@ -425,7 +423,7 @@ export const processBatch = async (
                while (attempt < maxRetries) {
                  try {
                    // FIX: output_format moved to URL query parameter to avoid 400 error
-                   const url = `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128`;
+                   const url = `https://api.elevenlabs.io/v1/text-to-speech/${elevenLabsVoiceId}?output_format=mp3_44100_128`;
                    
                    const response = await fetch(url, {
                       method: 'POST',
