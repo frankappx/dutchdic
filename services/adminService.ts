@@ -471,10 +471,10 @@ export const processBatch = async (
                  model: currentTtsModel,
                  contents: [{ parts: [{ text }] }],
                  config: {
-                   // STRONG Dutch enforcement for words like 'lamp' that exist in English
-                   systemInstruction: "You are a native Dutch speaker. Pronounce the text strictly in Dutch. ATTENTION: Many words look like English (e.g. lamp, hand, bed). You MUST pronounce them with Dutch vowels and intonation. Do not switch to English pronunciation.",
+                   // REMOVED systemInstruction to prevent 500 errors on Flash model.
                    responseModalities: ['AUDIO' as any],
-                   speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } },
+                   // 'Kore' is a standard reliable voice
+                   speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }, 
                  },
                });
 

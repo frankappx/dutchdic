@@ -372,7 +372,7 @@ export const generateVisualization = async (
 ): Promise<{ data: string | null; error: string | null }> => {
   const stylePrompts: Record<string, string> = {
     cartoon: 'fun, energetic cartoon style',
-    ghibli: 'healing slice-of-life anime style, detailed backgrounds, soft colors', // CHANGED
+    ghibli: 'healing slice-of-life anime style, detailed backgrounds, soft colors, relaxing atmosphere', // CHANGED
     flat: 'minimalist flat design, vector art, vibrant colors',
     watercolor: 'soft artistic watercolor painting',
     pixel: '8-bit pixel art, retro game style',
@@ -428,11 +428,12 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
         model: modelName,
         contents: [{ parts: [{ text: text }] }],
         config: {
-          systemInstruction: "You are a native Dutch speaker. Pronounce the text strictly in Dutch. ATTENTION: Many words look like English (e.g. lamp, hand, bed). You MUST pronounce them with Dutch vowels and intonation. Do not switch to English pronunciation.",
+          // REMOVED systemInstruction to prevent 500 errors on Flash model.
           responseModalities: ['AUDIO' as any],
+          // 'Kore' is a standard reliable voice
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Puck' }, 
+              prebuiltVoiceConfig: { voiceName: 'Kore' }, 
             },
           },
         },
