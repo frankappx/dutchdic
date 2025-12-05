@@ -416,8 +416,8 @@ export const generateVisualization = async (
 
 // --- ELEVENLABS TTS ---
 
-// CHANGED: Use Standard Voice ID 'Rachel'
-const ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; 
+// CHANGED: Restored user's specific Voice ID to ensure Dutch pronunciation.
+const ELEVENLABS_VOICE_ID = "YUdpWWny7k5yb4QCeweX"; 
 
 export const fetchTTS = async (text: string): Promise<string | null> => {
   if (!elevenLabsKey) {

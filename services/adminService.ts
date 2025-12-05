@@ -148,8 +148,9 @@ const getLanguageName = (code: string) => {
   return map[code] || 'English';
 };
 
-// CHANGED: Use Standard Voice ID 'Rachel' to avoid 400 errors with custom/private voice IDs
-const ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; 
+// CHANGED: Restored user's specific Voice ID to ensure Dutch pronunciation.
+// Note: This ID must exist in the account associated with the provided API Key.
+const ELEVENLABS_VOICE_ID = "YUdpWWny7k5yb4QCeweX"; 
 
 export const processBatch = async (
   words: string[],
