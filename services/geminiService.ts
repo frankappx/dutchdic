@@ -415,11 +415,7 @@ export const generateVisualization = async (
 
 // --- ELEVENLABS TTS ---
 
-// Standard Dutch-friendly voice (Rachel is generally good and stable)
-// '21m00Tcm4TlvDq8ikWAM' = Rachel
-// 'Xb7hH8MSUDp1zsieKSV9' = Alice
-// 'jsCqWAovK2LkecY7zXl4' = Freya
-const ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; 
+const ELEVENLABS_VOICE_ID = "YUdpWWny7k5yb4QCeweX"; 
 
 export const fetchTTS = async (text: string): Promise<string | null> => {
   if (!elevenLabsKey) {

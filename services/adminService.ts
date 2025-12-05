@@ -3,7 +3,7 @@ import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { ImageStyle } from '../types';
 
 // Configuration for rate limiting
-const DELAY_BETWEEN_WORDS_MS = 3000; 
+const DELAY_BETWEEN_WORDS_MS = 1000; // Reduced from 3000ms as per user feedback
 const STORAGE_BUCKET = 'dictionary-assets';
 
 export interface BatchConfig {
@@ -148,7 +148,7 @@ const getLanguageName = (code: string) => {
   return map[code] || 'English';
 };
 
-const ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Rachel
+const ELEVENLABS_VOICE_ID = "YUdpWWny7k5yb4QCeweX"; 
 
 export const processBatch = async (
   words: string[],
@@ -482,7 +482,7 @@ export const processBatch = async (
                     const wordAudioUrl = await generateAndUploadTTS(textToSpeak, 'audio/words');
                     if (wordAudioUrl) {
                        await supabase.from('words').update({ pronunciation_audio_url: wordAudioUrl }).eq('id', wordId);
-                       onLog(`   -> [Word] MP3 saved.`);
+                       onLog(`   -> [Word] MP3 ${wordHasAudio ? 'Overwritten' : 'Saved'}.`);
                     }
                 }
             }
@@ -506,7 +506,7 @@ export const processBatch = async (
                               .eq('word_id', wordId)
                               .eq('language_code', targetLangCode)
                               .eq('sentence_index', sIndex);
-                            onLog(`   -> [Example ${sIndex + 1}] MP3 saved.`);
+                            onLog(`   -> [Example ${sIndex + 1}] MP3 ${exHasAudio ? 'Overwritten' : 'Saved'}.`);
                          }
                      }
                   }

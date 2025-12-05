@@ -31,7 +31,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     audioEx2: true
   });
   const [selectedStyle, setSelectedStyle] = useState<ImageStyle>('ghibli');
-  const [overwriteAudio, setOverwriteAudio] = useState(false);
+  // Changed default to true as per user request
+  const [overwriteAudio, setOverwriteAudio] = useState(true);
 
   const styles: ImageStyle[] = ['flat', 'cartoon', 'ghibli', 'watercolor', 'pixel', 'realistic'];
 
