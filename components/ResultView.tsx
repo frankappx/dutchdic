@@ -32,7 +32,16 @@ interface ResultViewProps {
 const isValid = (text?: string | null) => {
   if (!text) return false;
   const t = text.trim().toLowerCase();
-  return t !== 'null' && t !== 'undefined' && t !== 'n/a' && t !== 'none' && t !== '' && t !== 'n.v.t.' && t !== 'nvt' && t !== '-';
+  
+  // Standard empty/null checks
+  if (['null', 'undefined', 'n/a', 'none', '', '-'].includes(t)) return false;
+
+  // Robust check for Dutch "n.v.t." (not applicable) variants
+  // Removes dots and spaces: "n.v.t." -> "nvt", "n.v.t" -> "nvt"
+  const clean = t.replace(/[\.\s]/g, '');
+  if (clean === 'nvt' || clean === 'nietvantoepassing') return false;
+
+  return true;
 };
 
 const cleanText = (text: string) => text.toLowerCase().replace(/[^\w\s]|_/g, "").replace(/\s+/g, " ").trim();

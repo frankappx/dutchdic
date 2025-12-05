@@ -271,8 +271,8 @@ export const generateDefinition = async (
       2. Definition: Max 15 words. Concise.
       3. Usage Note: Max 2 sentences. Fun/Casual tone.
       4. Examples: Exactly 2 examples.
-         - 'target' field: Dutch sentence.
-         - 'source' field: Translation in ${sourceLang}.
+         - 'dutch' field: The Dutch sentence.
+         - 'translation' field: The translation in ${sourceLang}.
       5. Synonyms/Antonyms: Max 5 items each.
       6. OUTPUT: Pure JSON.
       
@@ -304,8 +304,8 @@ export const generateDefinition = async (
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  target: { type: Type.STRING, description: "Sentence in Dutch" },
-                  source: { type: Type.STRING, description: `Translation in ${sourceLang}` },
+                  dutch: { type: Type.STRING, description: "Sentence in Dutch" },
+                  translation: { type: Type.STRING, description: `Translation in ${sourceLang}` },
                 }
               }
             },
@@ -330,7 +330,17 @@ export const generateDefinition = async (
     let text = response.text || "";
     text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
 
-    return JSON.parse(text);
+    const json = JSON.parse(text);
+
+    // Map new schema keys to app keys
+    if (json.examples && Array.isArray(json.examples)) {
+      json.examples = json.examples.map((ex: any) => ({
+        target: ex.dutch || ex.target,
+        source: ex.translation || ex.source
+      }));
+    }
+
+    return json;
   } catch (error) {
     console.error("Gemini API Error (generateDefinition):", error);
     return null;
