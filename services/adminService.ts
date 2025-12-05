@@ -505,10 +505,16 @@ export const processBatch = async (
                 // HANDLE 404 (Model Not Found) - Switch to Flash
                 // 'gemini-2.5-pro-tts' is not yet widely available, so this fallback is crucial.
                 if (errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('NOT_FOUND')) {
+                    // FIX: If we are already on the fallback model, do NOT fallback again (prevents infinite loop)
+                    if (currentTtsModel === "gemini-2.5-flash-preview-tts") {
+                        onLog(`   ❌ [TTS] Fallback model '${currentTtsModel}' also failed (404). Aborting audio.`);
+                        return null;
+                    }
+
                     onLog(`   ⚠️ [TTS] Model '${currentTtsModel}' not found (404). Falling back to 'gemini-2.5-flash-preview-tts'.`);
                     currentTtsModel = "gemini-2.5-flash-preview-tts";
-                    attempt = 0; // Reset attempts for the new model to ensure full retry budget
-                    continue;
+                    attempt = 0; // Reset attempts for the new model
+                    continue; // Retry with new model
                 }
 
                 // HANDLE 500/503 (Server Error) - Retry
