@@ -18,6 +18,12 @@ export interface BatchConfig {
   overwriteAudio: boolean;
 }
 
+export interface VoiceIdConfig {
+  word: string;
+  ex1: string;
+  ex2: string;
+}
+
 const DUTCH_BACKGROUNDS = [
   "Amsterdam Canal Ring at twilight with illuminated gable houses",
   "Rijksmuseum with cyclists passing by in the foreground",
@@ -153,7 +159,7 @@ export const processBatch = async (
   serviceRoleKey: string,
   geminiKey: string,
   elevenLabsKey: string,
-  elevenLabsVoiceId: string, // UPDATED: Accept Voice ID as argument
+  voiceIds: VoiceIdConfig, // UPDATED: Accept Voice ID object
   supabaseUrl: string,
   targetLangCode: string,
   config: BatchConfig,
@@ -414,7 +420,8 @@ export const processBatch = async (
         if (!elevenLabsKey) {
             onLog(`   ❌ Skipping Audio: No ElevenLabs Key provided.`);
         } else {
-            const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
+            // UPDATED: Function now accepts specificVoiceId
+            const generateAndUploadTTS = async (text: string, pathPrefix: string, specificVoiceId: string): Promise<string | null> => {
                if (!text) return null;
                
                let attempt = 0;
@@ -422,8 +429,8 @@ export const processBatch = async (
 
                while (attempt < maxRetries) {
                  try {
-                   // FIX: output_format moved to URL query parameter to avoid 400 error
-                   const url = `https://api.elevenlabs.io/v1/text-to-speech/${elevenLabsVoiceId}?output_format=mp3_44100_128`;
+                   // Use the passed specificVoiceId
+                   const url = `https://api.elevenlabs.io/v1/text-to-speech/${specificVoiceId}?output_format=mp3_44100_128`;
                    
                    const response = await fetch(url, {
                       method: 'POST',
@@ -435,22 +442,19 @@ export const processBatch = async (
                       body: JSON.stringify({
                         text: text,
                         model_id: "eleven_multilingual_v2",
-                        // output_format: "mp3_44100_128", // REMOVED
                         voice_settings: { stability: 0.5, similarity_boost: 0.75 }
                       })
                    });
 
                    if (!response.ok) {
                      if (response.status === 429) throw new Error("Quota Exceeded");
-                     
-                     // UPDATED: Read response body to show exact error in logs
                      const errData = await response.json().catch(() => ({ detail: "Unknown Error" }));
                      const errMsg = JSON.stringify(errData);
                      throw new Error(`API Error ${response.status}: ${errMsg}`);
                    }
 
                    const blob = await response.blob();
-                   const fileName = `${pathPrefix}/${term}_${Date.now()}.mp3`; // Note: .mp3 extension
+                   const fileName = `${pathPrefix}/${term}_${Date.now()}.mp3`;
                    
                    const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'audio/mpeg' });
                    if (!upErr) {
@@ -485,7 +489,8 @@ export const processBatch = async (
                     if (article && (article === 'de' || article === 'het')) {
                         textToSpeak = `${article} ${term}`;
                     }
-                    const wordAudioUrl = await generateAndUploadTTS(textToSpeak, 'audio/words');
+                    // Pass word voice ID
+                    const wordAudioUrl = await generateAndUploadTTS(textToSpeak, 'audio/words', voiceIds.word);
                     if (wordAudioUrl) {
                        await supabase.from('words').update({ pronunciation_audio_url: wordAudioUrl }).eq('id', wordId);
                        onLog(`   -> [Word] MP3 ${wordHasAudio ? 'Overwritten' : 'Saved'}.`);
@@ -506,7 +511,10 @@ export const processBatch = async (
                           onLog(`   ⏭️ [Example ${sIndex + 1}] Audio exists. Skipping.`);
                      } else {
                          await sleep(500); 
-                         const exUrl = await generateAndUploadTTS(ex.dutch, 'audio/examples');
+                         // SELECT VOICE ID BASED ON INDEX
+                         const targetVoiceId = (sIndex === 0) ? voiceIds.ex1 : voiceIds.ex2;
+                         
+                         const exUrl = await generateAndUploadTTS(ex.dutch, 'audio/examples', targetVoiceId);
                          if (exUrl) {
                             await supabase.from('examples').update({ audio_url: exUrl })
                               .eq('word_id', wordId)

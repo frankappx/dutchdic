@@ -416,8 +416,8 @@ export const generateVisualization = async (
 
 // --- ELEVENLABS TTS ---
 
-// CHANGED: Use Standard Voice ID 'Rachel' (21m00Tcm4TlvDq8ikWAM) to avoid errors if custom voice limit is reached.
-const ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; 
+// CHANGED: Use Premium Voice ID 'AyQGttFzg1EY7EIKkpHs' (Paid Tier).
+const ELEVENLABS_VOICE_ID = "AyQGttFzg1EY7EIKkpHs"; 
 
 export const fetchTTS = async (text: string): Promise<string | null> => {
   if (!elevenLabsKey) {

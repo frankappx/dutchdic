@@ -15,7 +15,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [geminiKey, setGeminiKey] = useState('');
   const [elevenLabsKey, setElevenLabsKey] = useState('');
-  const [voiceId, setVoiceId] = useState(''); // Default to empty (will use Rachel)
+  
+  // CHANGED: Three separate Voice IDs with requested defaults
+  const [voiceIdWord, setVoiceIdWord] = useState('OlBRrVAItyi00MuGMbna');
+  const [voiceIdEx1, setVoiceIdEx1] = useState('fIYdULbypRf7uZYX6u0T');
+  const [voiceIdEx2, setVoiceIdEx2] = useState('OlBRrVAItyi00MuGMbna');
   
   const [targetLang, setTargetLang] = useState('en'); // Default to English
   const [wordInput, setWordInput] = useState('');
@@ -81,8 +85,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       return;
     }
     
-    // UPDATED: Allow empty voiceId, default to Rachel if empty
-    const finalVoiceId = voiceId.trim() || '21m00Tcm4TlvDq8ikWAM';
+    // Bundle Voice IDs
+    const voiceIds = {
+      word: voiceIdWord.trim() || 'OlBRrVAItyi00MuGMbna',
+      ex1: voiceIdEx1.trim() || 'fIYdULbypRf7uZYX6u0T',
+      ex2: voiceIdEx2.trim() || 'OlBRrVAItyi00MuGMbna'
+    };
 
     const words = wordInput.split('\n').filter(w => w.trim().length > 0);
     if (words.length === 0) {
@@ -104,11 +112,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     setIsProcessing(true);
     setLogs([`🚀 Started batch process for ${words.length} words...`]);
-    if (!voiceId.trim()) {
-        addLog(`ℹ️ No Voice ID provided. Using default: Rachel (${finalVoiceId})`);
-    } else {
-        addLog(`🎙️ Using Custom Voice ID: ${finalVoiceId}`);
-    }
+    addLog(`🎙️ Voice Config:`);
+    addLog(`   - Word: ${voiceIds.word}`);
+    addLog(`   - Ex 1: ${voiceIds.ex1}`);
+    addLog(`   - Ex 2: ${voiceIds.ex2}`);
     
     const config: BatchConfig = {
       tasks,
@@ -116,7 +123,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       overwriteAudio
     };
 
-    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, finalVoiceId, supabaseUrl, targetLang, config, addLog);
+    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, voiceIds, supabaseUrl, targetLang, config, addLog);
     
     setIsProcessing(false);
   };
@@ -201,18 +208,42 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                    </select>
                  </div>
 
-                 <div>
-                   <label className="text-xs font-bold text-gray-400 block mb-2">ElevenLabs Voice ID</label>
-                   <input 
-                     type="text" 
-                     value={voiceId} 
-                     onChange={e => setVoiceId(e.target.value)} 
-                     placeholder="Leave blank for default (Rachel)"
-                     className="w-full bg-gray-50 border p-2 rounded-lg text-sm font-mono text-pop-teal placeholder:text-gray-300"
-                   />
-                   <p className="text-[10px] text-gray-400 mt-1">
-                     Empty = Standard Rachel (21m00Tcm4TlvDq8ikWAM). Custom IDs require paid plan.
-                   </p>
+                 {/* Updated Voice ID Section */}
+                 <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                   <h3 className="text-xs font-bold text-gray-400 block mb-3 uppercase tracking-wider">ElevenLabs Voice IDs</h3>
+                   
+                   <div className="space-y-3">
+                     <div>
+                        <label className="text-[10px] font-bold text-pop-teal block mb-1">Word Pronunciation</label>
+                        <input 
+                          type="text" 
+                          value={voiceIdWord} 
+                          onChange={e => setVoiceIdWord(e.target.value)} 
+                          className="w-full bg-white border p-2 rounded text-xs font-mono text-gray-700"
+                        />
+                     </div>
+                     
+                     <div className="flex gap-2">
+                       <div className="flex-1">
+                          <label className="text-[10px] font-bold text-pop-purple block mb-1">Example 1 (Voice A)</label>
+                          <input 
+                            type="text" 
+                            value={voiceIdEx1} 
+                            onChange={e => setVoiceIdEx1(e.target.value)} 
+                            className="w-full bg-white border p-2 rounded text-xs font-mono text-gray-700"
+                          />
+                       </div>
+                       <div className="flex-1">
+                          <label className="text-[10px] font-bold text-pop-pink block mb-1">Example 2 (Voice B)</label>
+                          <input 
+                            type="text" 
+                            value={voiceIdEx2} 
+                            onChange={e => setVoiceIdEx2(e.target.value)} 
+                            className="w-full bg-white border p-2 rounded text-xs font-mono text-gray-700"
+                          />
+                       </div>
+                     </div>
+                   </div>
                  </div>
               </div>
 
