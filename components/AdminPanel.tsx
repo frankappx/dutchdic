@@ -207,7 +207,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                           onChange={e => setSelectedStyle(e.target.value as ImageStyle)}
                           className="w-full text-sm border-gray-200 rounded-lg p-2"
                        >
-                         {styles.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                         {styles.map(s => (
+                           <option key={s} value={s}>
+                             {s === 'ghibli' ? 'Healing Anime' : s.charAt(0).toUpperCase() + s.slice(1)}
+                           </option>
+                         ))}
                        </select>
                     </div>
                   )}
