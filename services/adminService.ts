@@ -458,41 +458,67 @@ export const processBatch = async (
         onLog(`🗣️ Processing Audio Requests...`);
         
         const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
-           try {
-             if (!text) return null;
-             const ttsResp = await ai.models.generateContent({
-               model: "gemini-2.5-flash-preview-tts",
-               contents: [{ parts: [{ text }] }],
-               config: {
-                 // STRONG Dutch enforcement for words like 'lamp' that exist in English
-                 systemInstruction: "You are a native Dutch speaker. Pronounce the text strictly in Dutch. ATTENTION: Many words look like English (e.g. lamp, hand, bed). You MUST pronounce them with Dutch vowels and intonation. Do not switch to English pronunciation.",
-                 responseModalities: ['AUDIO' as any],
-                 speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } },
-               },
-             });
-             const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-             if (audioBase64) {
-                const pcmData = base64ToUint8Array(audioBase64);
-                if (pcmData) {
-                    const wavBlob = createWavFile(pcmData);
-                    const fileName = `${pathPrefix}/${term}_${Date.now()}.wav`; 
-                    const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, wavBlob, { contentType: 'audio/wav' });
-                    if (!upErr) {
-                       const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
-                       return urlData.publicUrl;
-                    }
+           if (!text) return null;
+           
+           let attempt = 0;
+           const maxRetries = 3;
+
+           while (attempt < maxRetries) {
+             try {
+               const ttsResp = await ai.models.generateContent({
+                 model: "gemini-2.5-flash-preview-tts",
+                 contents: [{ parts: [{ text }] }],
+                 config: {
+                   // STRONG Dutch enforcement for words like 'lamp' that exist in English
+                   systemInstruction: "You are a native Dutch speaker. Pronounce the text strictly in Dutch. ATTENTION: Many words look like English (e.g. lamp, hand, bed). You MUST pronounce them with Dutch vowels and intonation. Do not switch to English pronunciation.",
+                   responseModalities: ['AUDIO' as any],
+                   speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } },
+                 },
+               });
+
+               const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+               
+               if (audioBase64) {
+                  const pcmData = base64ToUint8Array(audioBase64);
+                  if (pcmData) {
+                      const wavBlob = createWavFile(pcmData);
+                      const fileName = `${pathPrefix}/${term}_${Date.now()}.wav`; 
+                      
+                      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, wavBlob, { contentType: 'audio/wav' });
+                      if (!upErr) {
+                         const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+                         return urlData.publicUrl;
+                      } else {
+                         // Upload failed - likely not recoverable by retrying TTS
+                         onLog(`   ⚠️ Storage Upload Error: ${upErr.message}`);
+                         return null;
+                      }
+                  }
+               }
+               return null;
+
+             } catch (e: any) { 
+                const errMsg = e.message || e.toString();
+                // Check for 500 Internal Error or 503 Service Unavailable
+                if (errMsg.includes('500') || errMsg.includes('503') || errMsg.includes('INTERNAL')) {
+                   attempt++;
+                   if (attempt < maxRetries) {
+                      onLog(`   ⏳ [TTS] Server Error (500). Retrying (${attempt}/${maxRetries})...`);
+                      await sleep(1500 * attempt); // Backoff
+                      continue; 
+                   }
                 }
+                
+                // For other errors (like Quota 429), break immediately
+                if (errMsg.includes('429') || errMsg.includes('Quota')) {
+                    onLog(`   ⚠️ [TTS] Quota Exceeded (429). Skipping audio.`);
+                } else {
+                    onLog(`   ⚠️ [TTS] Generation failed: ${errMsg}`);
+                }
+                return null; 
              }
-           } catch (e: any) { 
-              // Explicitly log API errors but do NOT rethrow, so processBatch continues
-              const errMsg = e.message || e.toString();
-              if (errMsg.includes('429') || errMsg.includes('Quota')) {
-                  onLog(`   ⚠️ [TTS] Quota Exceeded (429). Skipping audio.`);
-              } else {
-                  onLog(`   ⚠️ [TTS] Generation failed: ${errMsg}`);
-              }
-              return null; 
            }
+           onLog(`   ⚠️ [TTS] Failed after ${maxRetries} attempts.`);
            return null;
         };
 
