@@ -7,6 +7,26 @@ interface AdminPanelProps {
   onBack: () => void;
 }
 
+// Safe environment variable accessor to prevent crashes
+const getEnv = (key: string) => {
+  let value = '';
+  try {
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      // @ts-ignore
+      value = import.meta.env[key] || '';
+    }
+  } catch (e) {}
+  if (!value) {
+    try {
+      if (typeof process !== 'undefined' && process.env) {
+        value = process.env[key] || '';
+      }
+    } catch (e) {}
+  }
+  return value;
+};
+
 const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -43,12 +63,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
   // Auto-fill env vars
   useEffect(() => {
-    // @ts-ignore
-    const envUrl = import.meta.env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    // @ts-ignore
-    const envGemini = import.meta.env.VITE_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-    // @ts-ignore
-    const envEleven = import.meta.env.VITE_ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY;
+    const envUrl = getEnv('VITE_SUPABASE_URL');
+    const envGemini = getEnv('VITE_GEMINI_API_KEY');
+    const envEleven = getEnv('VITE_ELEVENLABS_API_KEY');
     
     if (envUrl) setSupabaseUrl(envUrl);
     if (envGemini) setGeminiKey(envGemini);

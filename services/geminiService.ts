@@ -3,31 +3,40 @@ import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 import { supabase } from "./supabaseClient";
 
-// Initialize Keys
+// Initialize Keys safely
 const getEnv = (key: string) => {
-  let value = '';
   try {
     // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
       // @ts-ignore
-      value = import.meta.env[key] || '';
+      return import.meta.env[key];
     }
   } catch (e) {}
-  if (!value) {
-    try {
-      if (typeof process !== 'undefined' && process.env) {
-        value = process.env[key] || '';
-      }
-    } catch (e) {}
-  }
-  return value;
+
+  try {
+    // @ts-ignore
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+      // @ts-ignore
+      return process.env[key];
+    }
+  } catch (e) {}
+  
+  return '';
 };
 
 const apiKey = getEnv('VITE_GEMINI_API_KEY') || getEnv('API_KEY');
 // Use env var or the provided hardcoded key as fallback
 const elevenLabsKey = getEnv('VITE_ELEVENLABS_API_KEY') || '8907edb0434320a0def2afad8da48e900ec0da915a613e1baba0bc998197535f';
 
-const ai = new GoogleGenAI({ apiKey });
+// Safe AI Init: Prevent crash if API key is missing during render
+let ai: GoogleGenAI;
+try {
+  ai = new GoogleGenAI({ apiKey: apiKey || 'dummy_key' });
+} catch (e) {
+  console.warn("GoogleGenAI failed to initialize:", e);
+  // @ts-ignore
+  ai = { models: { generateContent: () => Promise.reject("AI Client Failed") } };
+}
 
 // --- Helper: Timeout ---
 const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
@@ -44,7 +53,6 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 // --- Audio Helpers ---
 
-// Converts Base64 string to ArrayBuffer (Standard for MP3/WAV)
 function base64ToArrayBuffer(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -60,7 +68,7 @@ const globalAudioCache: Record<string, string> = {};
 
 const getAudioContext = () => {
   if (!sharedAudioContext) {
-    sharedAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 44100}); // Standard SR
+    sharedAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 44100});
   }
   return sharedAudioContext;
 };
@@ -148,55 +156,59 @@ export const playErrorSound = async () => {
 
 /**
  * Adds a watermark to the bottom right of the image using HTML5 Canvas.
- * RESIZES to 512x512 and COMPRESSES to JPEG (0.8) to save bandwidth/storage.
- * @param base64Image Raw base64 string (no data prefix)
- * @returns Promise resolving to new base64 string (JPEG)
+ * RESIZES to 640x360 (16:9) and returns PNG to ensure compatibility.
  */
 const addWatermark = (base64Image: string): Promise<string> => {
   return new Promise((resolve) => {
+    // Prevent crash in non-browser environments
+    if (typeof window === 'undefined') {
+        resolve(base64Image);
+        return;
+    }
+
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      const TARGET_SIZE = 512;
-      canvas.width = TARGET_SIZE;
-      canvas.height = TARGET_SIZE;
+      // OPTIMIZATION: Resize to 640x360 (16:9 Aspect Ratio)
+      const TARGET_WIDTH = 640;
+      const TARGET_HEIGHT = 360;
+      
+      canvas.width = TARGET_WIDTH;
+      canvas.height = TARGET_HEIGHT;
       
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        // 1. Draw Original Image Scaled
-        ctx.drawImage(img, 0, 0, TARGET_SIZE, TARGET_SIZE);
+        // 1. Draw Original Image Scaled to 16:9
+        ctx.drawImage(img, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
         // 2. Configure Watermark Text
         const text = "@Parlolo";
-        const fontSize = Math.max(14, Math.floor(TARGET_SIZE * 0.04));
+        const fontSize = Math.max(14, Math.floor(TARGET_WIDTH * 0.035));
         const padding = Math.floor(fontSize * 0.8);
 
-        ctx.font = `900 ${fontSize}px sans-serif`; // Extra Bold
+        ctx.font = `900 ${fontSize}px sans-serif`; 
         ctx.textAlign = 'right';
         ctx.textBaseline = 'bottom';
         
-        const x = TARGET_SIZE - padding;
-        const y = TARGET_SIZE - padding;
+        const x = TARGET_WIDTH - padding;
+        const y = TARGET_HEIGHT - padding;
 
-        // 3. Draw Shadow/Stroke (for contrast on any background)
         ctx.shadowColor = "rgba(0,0,0,0.8)";
         ctx.shadowBlur = 4;
         ctx.lineWidth = 3;
         ctx.strokeStyle = 'rgba(0,0,0, 0.6)';
         ctx.strokeText(text, x, y);
 
-        // 4. Draw White Text
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
         ctx.fillText(text, x, y);
       }
       
-      // Return clean Base64 (strip prefix) in JPEG format
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      // Return clean Base64 (strip prefix) in PNG format
+      const dataUrl = canvas.toDataURL('image/png');
       resolve(dataUrl.split(',')[1]);
     };
     img.onerror = () => {
-        // Fallback: return original if canvas fails
         resolve(base64Image); 
     };
     img.src = `data:image/png;base64,${base64Image}`;
@@ -212,7 +224,7 @@ export const generateDefinition = async (
   preferredStyle: string = 'ghibli'
 ): Promise<Omit<DictionaryEntry, 'id' | 'timestamp'> | null> => {
   
-  // 1. SUPABASE CACHE LOOKUP (Via RPC)
+  // 1. SUPABASE CACHE LOOKUP
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -256,8 +268,6 @@ export const generateDefinition = async (
 
   // 2. GEMINI FALLBACK
   try {
-    const isMonolingual = sourceLang === targetLang;
-    
     const prompt = `
       Role: Strict Dictionary API.
       Task: Analyze the term "${term}" for a Dutch learner.
@@ -398,7 +408,7 @@ export const generateVisualization = async (
       ai.models.generateContent({
         model: 'gemini-3-pro-image-preview',
         contents: { parts: [{ text: prompt }] },
-        config: { imageConfig: { imageSize: "1K" } }
+        config: { imageConfig: { imageSize: "1K", aspectRatio: "16:9" } }
       }),
       25000 
     );
@@ -430,7 +440,6 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
   console.log(`Using ElevenLabs TTS: ${text.substring(0, 20)}...`);
 
   try {
-    // FIX: output_format moved to URL query parameter to avoid 400 error
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128`;
     
     const response = await fetch(url, {
@@ -442,8 +451,7 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
       },
       body: JSON.stringify({
         text: text,
-        model_id: "eleven_multilingual_v2", // Best for Dutch
-        // output_format: "mp3_44100_128", // REMOVED from body
+        model_id: "eleven_multilingual_v2", 
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.75
@@ -460,12 +468,10 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
     }
 
     const blob = await response.blob();
-    // Convert Blob -> Base64 for app compatibility
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        // Remove data URL prefix (e.g. "data:audio/mpeg;base64,")
         resolve(base64String.split(',')[1]); 
       };
       reader.onerror = reject;
@@ -492,10 +498,7 @@ export const playAudio = async (base64Audio: string): Promise<void> => {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
     
-    // NATIVE BROWSER DECODING (Works for MP3/WAV/etc)
     const arrayBuffer = base64ToArrayBuffer(base64Audio);
-    
-    // Decode data (promisified for older browsers if needed, but modern use promise)
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
     
     await playAudioBuffer(audioBuffer, ctx);
@@ -504,7 +507,6 @@ export const playAudio = async (base64Audio: string): Promise<void> => {
   }
 };
 
-// Play from URL (e.g., from Supabase Storage)
 export const playAudioFromUrl = async (url: string): Promise<void> => {
   try {
     const ctx = getAudioContext();
@@ -521,7 +523,6 @@ export const playTTS = async (text: string, audioUrl?: string): Promise<void> =>
   await initAudio();
   playSilentOscillator();
 
-  // 1. If DB Audio URL exists, prioritize it!
   if (audioUrl) {
     console.log("🔊 Playing from DB URL:", audioUrl);
     try {
@@ -529,17 +530,14 @@ export const playTTS = async (text: string, audioUrl?: string): Promise<void> =>
       return;
     } catch (e) {
       console.warn("DB Audio failed, falling back to API...", e);
-      // Fall through to API
     }
   }
 
-  // 2. Check Global Cache
   if (globalAudioCache[text]) {
     await playAudio(globalAudioCache[text]);
     return;
   }
 
-  // 3. Fetch from API (ElevenLabs)
   try {
     const data = await fetchTTS(text);
     if (data) {
@@ -549,7 +547,7 @@ export const playTTS = async (text: string, audioUrl?: string): Promise<void> =>
       throw new Error("No audio data generated");
     }
   } catch (e: any) {
-    throw e; // Rethrow so UI can handle (e.g. Quota Exceeded)
+    throw e; 
   }
 };
 

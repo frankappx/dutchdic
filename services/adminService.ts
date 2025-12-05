@@ -84,8 +84,7 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
   });
 };
 
-// Helper: Add Watermark (Canvas) AND Resize/Compress
-// OPTIMIZATION: Resizes image to 512x512 and exports as JPEG 0.8 to save storage
+// Helper: Add Watermark (Canvas) AND Resize (16:9)
 const addWatermark = (base64Image: string): Promise<string> => {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') {
@@ -96,28 +95,29 @@ const addWatermark = (base64Image: string): Promise<string> => {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      // OPTIMIZATION: Resize to 512x512. 
-      // This is sufficient for mobile/web cards and drastically reduces file size vs 1024x1024.
-      const TARGET_SIZE = 512;
-      canvas.width = TARGET_SIZE;
-      canvas.height = TARGET_SIZE;
+      // OPTIMIZATION: Resize to 640x360 (16:9 Aspect Ratio)
+      // 640x360 = 230,400 pixels (Smaller than 512x512)
+      const TARGET_WIDTH = 640;
+      const TARGET_HEIGHT = 360;
+      
+      canvas.width = TARGET_WIDTH;
+      canvas.height = TARGET_HEIGHT;
       
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        // Draw image scaled to 512x512
-        ctx.drawImage(img, 0, 0, TARGET_SIZE, TARGET_SIZE);
+        // Draw image scaled to 16:9
+        ctx.drawImage(img, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
         const text = "@Parlolo";
-        // Adjust font size relative to new canvas size (approx 20px)
-        const fontSize = Math.max(14, Math.floor(TARGET_SIZE * 0.04));
+        const fontSize = Math.max(14, Math.floor(TARGET_WIDTH * 0.035));
         const padding = Math.floor(fontSize * 0.8);
 
         ctx.font = `900 ${fontSize}px sans-serif`;
         ctx.textAlign = 'right';
         ctx.textBaseline = 'bottom';
         
-        const x = TARGET_SIZE - padding;
-        const y = TARGET_SIZE - padding;
+        const x = TARGET_WIDTH - padding;
+        const y = TARGET_HEIGHT - padding;
 
         ctx.shadowColor = "rgba(0,0,0,0.8)";
         ctx.shadowBlur = 4;
@@ -128,9 +128,8 @@ const addWatermark = (base64Image: string): Promise<string> => {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
         ctx.fillText(text, x, y);
       }
-      // OPTIMIZATION: Export as JPEG with 80% quality. 
-      // PNG (lossless) ~2MB -> JPEG (0.8) ~60KB.
-      resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+      // Revert to PNG (default)
+      resolve(canvas.toDataURL('image/png').split(',')[1]);
     };
     img.onerror = () => resolve(base64Image);
     img.src = `data:image/png;base64,${base64Image}`;
@@ -388,7 +387,7 @@ export const processBatch = async (
               ai.models.generateContent({
                 model: "gemini-3-pro-image-preview",
                 contents: { parts: [{ text: imgPrompt }] },
-                config: { imageConfig: { imageSize: "1K" } }
+                config: { imageConfig: { imageSize: "1K", aspectRatio: "16:9" } }
               }), 
               25000 
           );
@@ -396,17 +395,17 @@ export const processBatch = async (
           const base64Img = imgResp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
           
           if (base64Img) {
-            onLog(`   -> Optimizing: Resizing to 512px & Compressing to JPEG...`);
+            onLog(`   -> Optimizing: Resizing to 640x360 (16:9) & Compressing...`);
             const watermarkedBase64 = await addWatermark(base64Img);
 
             const rawBytes = base64ToUint8Array(watermarkedBase64);
             if (rawBytes) {
-                // Changed from 'image/png' to 'image/jpeg'
-                const blob = new Blob([rawBytes], { type: 'image/jpeg' });
-                // Changed extension to .jpg
-                const fileName = `images/${term}_${config.imageStyle}_${Date.now()}.jpg`;
+                // Changed back to PNG
+                const blob = new Blob([rawBytes], { type: 'image/png' });
+                // Changed extension to .png
+                const fileName = `images/${term}_${config.imageStyle}_${Date.now()}.png`;
                 
-                const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/jpeg' });
+                const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
                 if (!upErr) {
                    const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
                    await supabase.from('word_images').upsert({
