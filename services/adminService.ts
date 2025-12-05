@@ -466,7 +466,7 @@ export const processBatch = async (
            while (attempt < maxRetries) {
              try {
                const ttsResp = await ai.models.generateContent({
-                 model: "gemini-2.5-flash-preview-tts",
+                 model: "gemini-2.5-pro-tts",
                  contents: [{ parts: [{ text }] }],
                  config: {
                    // STRONG Dutch enforcement for words like 'lamp' that exist in English
