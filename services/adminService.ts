@@ -148,7 +148,8 @@ const getLanguageName = (code: string) => {
   return map[code] || 'English';
 };
 
-const ELEVENLABS_VOICE_ID = "YUdpWWny7k5yb4QCeweX"; 
+// CHANGED: Use Standard Voice ID 'Rachel' to avoid 400 errors with custom/private voice IDs
+const ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; 
 
 export const processBatch = async (
   words: string[],
@@ -443,7 +444,11 @@ export const processBatch = async (
 
                    if (!response.ok) {
                      if (response.status === 429) throw new Error("Quota Exceeded");
-                     throw new Error(`API Error ${response.status}`);
+                     
+                     // UPDATED: Read response body to show exact error in logs
+                     const errData = await response.json().catch(() => ({ detail: "Unknown Error" }));
+                     const errMsg = JSON.stringify(errData);
+                     throw new Error(`API Error ${response.status}: ${errMsg}`);
                    }
 
                    const blob = await response.blob();
