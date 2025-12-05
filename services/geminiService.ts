@@ -421,16 +421,14 @@ export const generateVisualization = async (
 };
 
 export const fetchTTS = async (text: string): Promise<string | null> => {
-  // Helper to call API
-  const callApi = async (modelName: string) => {
-      console.log(`Using TTS model: ${modelName}`);
-      return await ai.models.generateContent({
-        model: modelName,
+  console.log(`Using TTS model: gemini-2.5-flash-preview-tts`);
+  
+  try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: text }] }],
         config: {
-          // REMOVED systemInstruction to prevent 500 errors on Flash model.
           responseModalities: ['AUDIO' as any],
-          // 'Kore' is a standard reliable voice
           speechConfig: {
             voiceConfig: {
               prebuiltVoiceConfig: { voiceName: 'Kore' }, 
@@ -438,26 +436,11 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
           },
         },
       });
-  };
-
-  try {
-    // Try Pro First
-    try {
-      const response = await callApi("gemini-2.5-pro-tts");
       return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-    } catch (e: any) {
-       // Fallback to Flash if Pro fails (404 or otherwise critical)
-       const msg = e.message || e.toString();
-       if (msg.includes('404') || msg.includes('not found')) {
-           console.warn("Pro TTS not found, falling back to Flash TTS");
-           const response = await callApi("gemini-2.5-flash-preview-tts");
-           return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-       }
-       throw e; // Rethrow other errors (like 500s to be handled by UI or retry logic if we wanted)
-    }
   } catch (error: any) {
     console.warn("TTS generation failed", error);
     if (error.message?.includes('429')) throw new Error("TTS Quota Exceeded (429)");
+    // Other errors return null so UI handles "no audio" gracefully
     return null;
   }
 };

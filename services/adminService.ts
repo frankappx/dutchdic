@@ -1,5 +1,4 @@
 
-
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { ImageStyle } from '../types';
@@ -465,28 +464,24 @@ export const processBatch = async (
         const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
            if (!text) return null;
            
-           // START with requested model (Pro), but fallback if needed
-           let currentTtsModel = "gemini-2.5-pro-tts"; 
+           // DIRECTLY USE FLASH (Removed Loop & Fallback)
+           const ttsModel = "gemini-2.5-flash-preview-tts"; 
            let attempt = 0;
            const maxRetries = 3;
-           const TIMEOUT_MS = 15000; // 15s timeout per attempt
+           const TIMEOUT_MS = 15000; 
 
            while (attempt < maxRetries) {
              try {
-               // Verbose log for debugging/feedback
-               // onLog(`   ...Calling ${currentTtsModel} (Attempt ${attempt + 1})`); 
-
                const ttsResp = await withTimeout<GenerateContentResponse>(
                    ai.models.generateContent({
-                     model: currentTtsModel,
+                     model: ttsModel,
                      contents: [{ parts: [{ text }] }],
                      config: {
-                       // REMOVED systemInstruction to prevent 500 errors on Flash model.
                        responseModalities: ['AUDIO' as any],
                        speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }, 
                      },
                    }),
-                   TIMEOUT_MS // Enforce timeout
+                   TIMEOUT_MS
                );
 
                const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
@@ -512,40 +507,19 @@ export const processBatch = async (
              } catch (e: any) { 
                 const errMsg = e.message || e.toString();
                 
-                // HANDLE 404 (Model Not Found) or TIMEOUT - Switch to Flash if not already there
-                const is404 = errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('NOT_FOUND');
-                const isTimeout = errMsg.includes('Timeout');
-
-                if (is404 || isTimeout) {
-                    // FIX: If we are already on the fallback model, do NOT fallback again (prevents infinite loop)
-                    if (currentTtsModel === "gemini-2.5-flash-preview-tts") {
-                        const reason = isTimeout ? "Timeout" : "404 Not Found";
-                        onLog(`   ❌ [TTS] Fallback model '${currentTtsModel}' failed (${reason}). Aborting audio.`);
-                        return null;
-                    }
-
-                    const reason = isTimeout ? "Timeout" : "404 Not Found";
-                    onLog(`   ⚠️ [TTS] Model '${currentTtsModel}' failed (${reason}). Switching to 'gemini-2.5-flash-preview-tts'...`);
-                    currentTtsModel = "gemini-2.5-flash-preview-tts";
-                    attempt = 0; // Reset attempts for the new model
-                    
-                    // Add a small delay before retry to let things settle
-                    await sleep(1000);
-                    onLog(`   🔄 Retrying with Flash model...`);
-                    continue; 
-                }
-
-                // HANDLE 500/503 (Server Error) - Retry
-                if (errMsg.includes('500') || errMsg.includes('503') || errMsg.includes('INTERNAL')) {
+                // HANDLE 500/503/Timeout - Retry
+                const isRetryable = errMsg.includes('500') || errMsg.includes('503') || errMsg.includes('INTERNAL') || errMsg.includes('Timeout');
+                
+                if (isRetryable) {
                    attempt++;
                    if (attempt < maxRetries) {
-                      onLog(`   ⏳ [TTS] Server Error (500) on ${currentTtsModel}. Retrying (${attempt}/${maxRetries})...`);
-                      await sleep(1500 * attempt); // Backoff
+                      onLog(`   ⏳ [TTS] Error (${errMsg.includes('Timeout') ? 'Timeout' : '500'}). Retrying (${attempt}/${maxRetries})...`);
+                      await sleep(1500 * attempt); 
                       continue; 
                    }
                 }
                 
-                // For other errors (like Quota 429), break immediately
+                // Quota or 404 on Flash (Fatal)
                 if (errMsg.includes('429') || errMsg.includes('Quota')) {
                     onLog(`   ⚠️ [TTS] Quota Exceeded (429). Skipping audio.`);
                 } else {
