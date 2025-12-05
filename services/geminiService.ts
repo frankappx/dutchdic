@@ -1,5 +1,4 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 import { supabase } from "./supabaseClient";
@@ -26,6 +25,19 @@ const getApiKey = () => {
 
 const apiKey = getApiKey();
 const ai = new GoogleGenAI({ apiKey });
+
+// --- Helper: Timeout ---
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
+    promise
+      .then(value => { clearTimeout(timer); resolve(value); })
+      .catch(reason => { clearTimeout(timer); reject(reason); });
+  });
+};
+
+// --- Helper: Delay ---
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 // --- Audio Helpers ---
 function decode(base64: string) {
@@ -372,7 +384,7 @@ export const generateVisualization = async (
 ): Promise<{ data: string | null; error: string | null }> => {
   const stylePrompts: Record<string, string> = {
     cartoon: 'fun, energetic cartoon style',
-    ghibli: 'healing slice-of-life anime style, detailed backgrounds, soft colors, relaxing atmosphere', // CHANGED
+    ghibli: 'healing slice-of-life anime style, detailed backgrounds, soft colors, relaxing atmosphere', 
     flat: 'minimalist flat design, vector art, vibrant colors',
     watercolor: 'soft artistic watercolor painting',
     pixel: '8-bit pixel art, retro game style',
@@ -400,11 +412,14 @@ export const generateVisualization = async (
 
   try {
     console.log("Using image model: gemini-3-pro-image-preview");
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
-      contents: { parts: [{ text: prompt }] },
-      config: { imageConfig: { imageSize: "1K" } }
-    });
+    const response = await withTimeout<GenerateContentResponse>(
+      ai.models.generateContent({
+        model: 'gemini-3-pro-image-preview',
+        contents: { parts: [{ text: prompt }] },
+        config: { imageConfig: { imageSize: "1K" } }
+      }),
+      25000 // 25s Timeout for images
+    );
 
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) {
@@ -420,29 +435,48 @@ export const generateVisualization = async (
   }
 };
 
+// Retry and Timeout Logic for TTS
 export const fetchTTS = async (text: string): Promise<string | null> => {
-  console.log(`Using TTS model: gemini-2.5-flash-preview-tts`);
+  const ttsModel = "gemini-2.5-flash-preview-tts";
+  console.log(`Using TTS model: ${ttsModel}`);
   
-  try {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: text }] }],
-        config: {
-          responseModalities: ['AUDIO' as any],
-          speechConfig: {
-            voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Kore' }, 
+  let attempt = 0;
+  const maxRetries = 3;
+  
+  while (attempt < maxRetries) {
+    try {
+      const response = await withTimeout<GenerateContentResponse>(
+          ai.models.generateContent({
+            model: ttsModel,
+            contents: [{ parts: [{ text: text }] }],
+            config: {
+              responseModalities: ['AUDIO' as any],
+              speechConfig: {
+                voiceConfig: {
+                  // Switched to 'Fenrir' (often handles multilingual better than Kore)
+                  prebuiltVoiceConfig: { voiceName: 'Fenrir' }, 
+                },
+              },
             },
-          },
-        },
-      });
+          }),
+          15000 // 15s Timeout
+      );
       return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-  } catch (error: any) {
-    console.warn("TTS generation failed", error);
-    if (error.message?.includes('429')) throw new Error("TTS Quota Exceeded (429)");
-    // Other errors return null so UI handles "no audio" gracefully
-    return null;
+    } catch (error: any) {
+      attempt++;
+      console.warn(`TTS Attempt ${attempt} failed:`, error.message);
+      
+      const errMsg = error.message || "";
+      if (errMsg.includes('429')) throw new Error("TTS Quota Exceeded (429)"); // Fatal
+      
+      if (attempt >= maxRetries) {
+        return null;
+      }
+      // Small backoff
+      await sleep(1000);
+    }
   }
+  return null;
 };
 
 const playAudioBuffer = async (audioBuffer: AudioBuffer, ctx: AudioContext) => {
@@ -468,10 +502,6 @@ export const playAudioFromUrl = async (url: string): Promise<void> => {
   try {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
-    
-    // Play sound from URL via HTML5 Audio to avoid CORS issues with Web Audio API for remote files
-    // or fetch and decode if CORS is configured correctly.
-    // Simple HTML5 Audio is safest for storage URLs.
     const audio = new Audio(url);
     await audio.play();
   } catch (error) {

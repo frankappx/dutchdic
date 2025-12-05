@@ -358,6 +358,13 @@ export const processBatch = async (
 
          // We need 'wordData' (specifically examples) for Image context and Audio text
          if (!wordData) {
+            // Check if we need to fetch grammar data for intelligent audio generation (article)
+            const { data: wordRow } = await supabase
+               .from('words')
+               .select('grammar_data')
+               .eq('id', wordId)
+               .single();
+            
             const { data: existExs } = await supabase
               .from('examples')
               .select('dutch_sentence, sentence_index')
@@ -367,6 +374,7 @@ export const processBatch = async (
             
             // Reconstruct a minimal wordData object
             wordData = { 
+              grammar_data: wordRow?.grammar_data || {},
               examples: existExs ? existExs.map((e: any) => ({ 
                 dutch: e.dutch_sentence, 
                 index: e.sentence_index 
@@ -478,7 +486,10 @@ export const processBatch = async (
                      contents: [{ parts: [{ text }] }],
                      config: {
                        responseModalities: ['AUDIO' as any],
-                       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }, 
+                       speechConfig: { 
+                           // Use Fenrir for better multilingual handling
+                           voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } } 
+                       }, 
                      },
                    }),
                    TIMEOUT_MS
@@ -534,7 +545,18 @@ export const processBatch = async (
 
         // 1. Word Audio
         if (config.tasks.audioWord) {
-            const wordAudioUrl = await generateAndUploadTTS(term, 'audio/words');
+            // INTELLIGENT PRONUNCIATION FIX:
+            // Check if we have an article (de/het) to force Dutch pronunciation for ambiguous words like 'lamp' or 'water'.
+            let textToSpeak = term;
+            const article = wordData?.grammar_data?.article;
+            
+            // If it's a noun with an article, pronounce the article too (e.g. "de lamp")
+            if (article && (article === 'de' || article === 'het')) {
+                textToSpeak = `${article} ${term}`;
+                onLog(`   -> Optimized prompt: "${textToSpeak}" (ensures Dutch pronunciation)`);
+            }
+
+            const wordAudioUrl = await generateAndUploadTTS(textToSpeak, 'audio/words');
             if (wordAudioUrl) {
                await supabase.from('words').update({ pronunciation_audio_url: wordAudioUrl }).eq('id', wordId);
                onLog(`   -> [Word] Audio saved.`);
