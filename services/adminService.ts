@@ -148,9 +148,8 @@ const getLanguageName = (code: string) => {
   return map[code] || 'English';
 };
 
-// CHANGED: Restored user's specific Voice ID to ensure Dutch pronunciation.
-// Note: This ID must exist in the account associated with the provided API Key.
-const ELEVENLABS_VOICE_ID = "YUdpWWny7k5yb4QCeweX"; 
+// CHANGED: Use new Voice ID 'AyQGttFzg1EY7EIKkpHs' as requested.
+const ELEVENLABS_VOICE_ID = "AyQGttFzg1EY7EIKkpHs"; 
 
 export const processBatch = async (
   words: string[],
