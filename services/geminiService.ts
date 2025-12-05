@@ -421,30 +421,42 @@ export const generateVisualization = async (
 };
 
 export const fetchTTS = async (text: string): Promise<string | null> => {
-  try {
-    console.log("Using TTS model: gemini-2.5-pro-tts");
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-pro-tts",
-      contents: [{ parts: [{ text: text }] }],
-      config: {
-        // STRONG Dutch enforcement for words like 'lamp' that exist in English
-        systemInstruction: "You are a native Dutch speaker. Pronounce the text strictly in Dutch. ATTENTION: Many words look like English (e.g. lamp, hand, bed). You MUST pronounce them with Dutch vowels and intonation. Do not switch to English pronunciation.",
-        responseModalities: ['AUDIO' as any],
-        speechConfig: {
-          voiceConfig: {
-            // 'Puck' is often a more reliable European voice than Kore for non-English
-            prebuiltVoiceConfig: { voiceName: 'Puck' }, 
+  // Helper to call API
+  const callApi = async (modelName: string) => {
+      console.log(`Using TTS model: ${modelName}`);
+      return await ai.models.generateContent({
+        model: modelName,
+        contents: [{ parts: [{ text: text }] }],
+        config: {
+          systemInstruction: "You are a native Dutch speaker. Pronounce the text strictly in Dutch. ATTENTION: Many words look like English (e.g. lamp, hand, bed). You MUST pronounce them with Dutch vowels and intonation. Do not switch to English pronunciation.",
+          responseModalities: ['AUDIO' as any],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Puck' }, 
+            },
           },
         },
-      },
-    });
-    return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+      });
+  };
+
+  try {
+    // Try Pro First
+    try {
+      const response = await callApi("gemini-2.5-pro-tts");
+      return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+    } catch (e: any) {
+       // Fallback to Flash if Pro fails (404 or otherwise critical)
+       const msg = e.message || e.toString();
+       if (msg.includes('404') || msg.includes('not found')) {
+           console.warn("Pro TTS not found, falling back to Flash TTS");
+           const response = await callApi("gemini-2.5-flash-preview-tts");
+           return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
+       }
+       throw e; // Rethrow other errors (like 500s to be handled by UI or retry logic if we wanted)
+    }
   } catch (error: any) {
     console.warn("TTS generation failed", error);
-    // Propagate quota error
-    if (error.message?.includes('429') || error.toString().includes('429')) {
-      throw new Error("TTS Quota Exceeded (429)");
-    }
+    if (error.message?.includes('429')) throw new Error("TTS Quota Exceeded (429)");
     return null;
   }
 };

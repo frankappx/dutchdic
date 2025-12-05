@@ -460,13 +460,15 @@ export const processBatch = async (
         const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
            if (!text) return null;
            
+           // START with requested model (Pro), but fallback if needed
+           let currentTtsModel = "gemini-2.5-pro-tts"; 
            let attempt = 0;
            const maxRetries = 3;
 
            while (attempt < maxRetries) {
              try {
                const ttsResp = await ai.models.generateContent({
-                 model: "gemini-2.5-pro-tts",
+                 model: currentTtsModel,
                  contents: [{ parts: [{ text }] }],
                  config: {
                    // STRONG Dutch enforcement for words like 'lamp' that exist in English
@@ -499,11 +501,21 @@ export const processBatch = async (
 
              } catch (e: any) { 
                 const errMsg = e.message || e.toString();
-                // Check for 500 Internal Error or 503 Service Unavailable
+                
+                // HANDLE 404 (Model Not Found) - Switch to Flash
+                // 'gemini-2.5-pro-tts' is not yet widely available, so this fallback is crucial.
+                if (errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('NOT_FOUND')) {
+                    onLog(`   ⚠️ [TTS] Model '${currentTtsModel}' not found (404). Falling back to 'gemini-2.5-flash-preview-tts'.`);
+                    currentTtsModel = "gemini-2.5-flash-preview-tts";
+                    attempt = 0; // Reset attempts for the new model to ensure full retry budget
+                    continue;
+                }
+
+                // HANDLE 500/503 (Server Error) - Retry
                 if (errMsg.includes('500') || errMsg.includes('503') || errMsg.includes('INTERNAL')) {
                    attempt++;
                    if (attempt < maxRetries) {
-                      onLog(`   ⏳ [TTS] Server Error (500). Retrying (${attempt}/${maxRetries})...`);
+                      onLog(`   ⏳ [TTS] Server Error (500) on ${currentTtsModel}. Retrying (${attempt}/${maxRetries})...`);
                       await sleep(1500 * attempt); // Backoff
                       continue; 
                    }
