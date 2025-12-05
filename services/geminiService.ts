@@ -269,10 +269,10 @@ export const generateDefinition = async (
       Constraints:
       1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
       2. Definition: Max 15 words. Concise.
-      3. Usage Note: Max 2 sentences. Fun/Casual tone.
+      3. Usage Note: Around 60 words. Fun, detailed, and helpful cultural or usage context.
       4. Examples: Exactly 2 examples.
-         - 'dutch' field: The Dutch sentence.
-         - 'translation' field: The translation in ${sourceLang}.
+         - 'dutch' field: MUST be the Dutch sentence.
+         - 'translation' field: MUST be the translation in ${sourceLang}.
       5. Synonyms/Antonyms: Max 5 items each.
       6. OUTPUT: Pure JSON.
       
@@ -304,12 +304,12 @@ export const generateDefinition = async (
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  dutch: { type: Type.STRING, description: "Sentence in Dutch" },
-                  translation: { type: Type.STRING, description: `Translation in ${sourceLang}` },
+                  dutch: { type: Type.STRING, description: "The sentence in Dutch (Target Language)" },
+                  translation: { type: Type.STRING, description: `The translation in ${sourceLang} (Source Language)` },
                 }
               }
             },
-            usageNote: { type: Type.STRING },
+            usageNote: { type: Type.STRING, description: "Detailed usage note (approx 60 words)" },
             grammar: {
               type: Type.OBJECT,
               properties: {

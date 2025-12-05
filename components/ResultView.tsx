@@ -39,7 +39,7 @@ const isValid = (text?: string | null) => {
   // Robust check for Dutch "n.v.t." (not applicable) variants
   // Removes dots and spaces: "n.v.t." -> "nvt", "n.v.t" -> "nvt"
   const clean = t.replace(/[\.\s]/g, '');
-  if (clean === 'nvt' || clean === 'nietvantoepassing') return false;
+  if (clean === 'nvt' || clean === 'nietvantoepassing' || clean === 'geen') return false;
 
   return true;
 };
