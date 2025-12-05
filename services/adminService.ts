@@ -1,6 +1,7 @@
 
+
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { ImageStyle } from '../types';
 
 // Configuration for rate limiting
@@ -18,9 +19,8 @@ export interface BatchConfig {
   imageStyle: ImageStyle;
 }
 
-// Rich Dutch Cultural Contexts (Enhanced with specific locations and lifestyles)
+// Rich Dutch Cultural Contexts
 const DUTCH_BACKGROUNDS = [
-  // Iconic Cityscapes & Architecture
   "Amsterdam Canal Ring at twilight with illuminated gable houses",
   "Rijksmuseum with cyclists passing by in the foreground",
   "Modern Rotterdam skyline featuring the Erasmus Bridge and skyscrapers",
@@ -33,8 +33,6 @@ const DUTCH_BACKGROUNDS = [
   "Groningen Museum's colorful and eccentric modern architecture on the water",
   "Typical Dutch brick row houses with large windows and no curtains",
   "Haarlem Grote Markt with the massive St. Bavo Church",
-  
-  // Water Management & Windmills
   "Historic windmills at Kinderdijk lined up along the water at sunset",
   "Zaanse Schans with green wooden houses, small bridges and working windmills",
   "The massive Afsluitdijk causeway stretching endlessly across the sea",
@@ -43,8 +41,6 @@ const DUTCH_BACKGROUNDS = [
   "The Woudagemaal steam pumping station in a flat polder landscape",
   "Houseboats docked along a city canal with flower pots on deck",
   "The Delta Works storm surge barrier against the North Sea",
-  
-  // Nature & Agriculture
   "Vibrant tulip fields in Lisse (strips of red, yellow, pink)",
   "Rolling sand dunes along the North Sea coast with tall marram grass",
   "Purple heather fields in Hoge Veluwe National Park with a lone tree",
@@ -53,8 +49,6 @@ const DUTCH_BACKGROUNDS = [
   "A long straight dike road lined with tall trees and green fields",
   "Orchards in blossom in the Betuwe region in spring",
   "Sheep grazing on a green dike with the sea in the background",
-  
-  // Dutch Lifestyle & Gezelligheid
   "Inside a cozy 'Brown Café' with dark wooden interior, candles and beer",
   "People cycling in the rain with umbrellas (quintessential Dutch weather)",
   "A massive multi-story bicycle parking garage near a central train station",
@@ -65,8 +59,6 @@ const DUTCH_BACKGROUNDS = [
   "People relaxing on a sunny terrace (Terrasje pakken) in a city square",
   "King's Day celebration with orange decorations, clothes and canal boats",
   "A living room with very steep Dutch stairs visible",
-  
-  // Modern & Diverse
   "Modern architecture of Rotterdam Central Station (angular wood and steel)",
   "A multicultural street market with diverse food stalls and people",
   "Commuters on a busy train platform during rush hour (NS trains)",
@@ -78,13 +70,21 @@ const DUTCH_BACKGROUNDS = [
 // Helper: Pause execution
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
+// Helper: Timeout Wrapper for API calls
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`API Timeout after ${ms}ms`)), ms);
+    promise
+      .then(value => { clearTimeout(timer); resolve(value); })
+      .catch(reason => { clearTimeout(timer); reject(reason); });
+  });
+};
+
 // Helper: Add Watermark (Canvas)
 const addWatermark = (base64Image: string): Promise<string> => {
   return new Promise((resolve) => {
-    // In nodejs environments this won't work without a canvas polyfill, 
-    // but assuming this runs in the browser-based AdminPanel as per file structure.
     if (typeof window === 'undefined') {
-        resolve(base64Image); // Fallback for server-side if ever moved
+        resolve(base64Image);
         return;
     }
     const img = new Image();
@@ -249,42 +249,46 @@ export const processBatch = async (
           STRICTLY OUTPUT VALID JSON.
         `;
 
-        const textResp = await ai.models.generateContent({
-          model: "gemini-2.5-flash",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                definition: { type: Type.STRING },
-                partOfSpeech: { type: Type.STRING },
-                grammar_data: { 
-                  type: Type.OBJECT, 
+        // Wrap in timeout to prevent hanging
+        const textResp = await withTimeout<GenerateContentResponse>(
+            ai.models.generateContent({
+              model: "gemini-2.5-flash",
+              contents: prompt,
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: Type.OBJECT,
                   properties: {
-                    plural: { type: Type.STRING },
-                    article: { type: Type.STRING },
-                    verbForms: { type: Type.STRING },
-                    adjectiveForms: { type: Type.STRING },
-                    synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
-                  }
-                },
-                usageNote: { type: Type.STRING },
-                examples: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      dutch: { type: Type.STRING },
-                      translation: { type: Type.STRING }
+                    definition: { type: Type.STRING },
+                    partOfSpeech: { type: Type.STRING },
+                    grammar_data: { 
+                      type: Type.OBJECT, 
+                      properties: {
+                        plural: { type: Type.STRING },
+                        article: { type: Type.STRING },
+                        verbForms: { type: Type.STRING },
+                        adjectiveForms: { type: Type.STRING },
+                        synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
+                      }
+                    },
+                    usageNote: { type: Type.STRING },
+                    examples: {
+                      type: Type.ARRAY,
+                      items: {
+                        type: Type.OBJECT,
+                        properties: {
+                          dutch: { type: Type.STRING },
+                          translation: { type: Type.STRING }
+                        }
+                      }
                     }
                   }
                 }
               }
-            }
-          }
-        });
+            }),
+            20000 // 20s timeout for text
+        );
 
         let rawText = textResp.text || "{}";
         try {
@@ -393,7 +397,7 @@ export const processBatch = async (
         
         const stylePrompts: Record<string, string> = {
           cartoon: 'fun, energetic cartoon style',
-          ghibli: 'healing slice-of-life anime style, detailed backgrounds, soft colors, relaxing atmosphere', // CHANGED from Studio Ghibli
+          ghibli: 'healing slice-of-life anime style, detailed backgrounds, soft colors, relaxing atmosphere', 
           flat: 'minimalist flat design, vector art, vibrant colors',
           watercolor: 'soft artistic watercolor painting',
           pixel: '8-bit pixel art, retro game style',
@@ -401,10 +405,8 @@ export const processBatch = async (
         };
         const stylePrompt = stylePrompts[config.imageStyle] || stylePrompts['ghibli'];
         
-        // Pick a random cultural background
         const randomBg = DUTCH_BACKGROUNDS[Math.floor(Math.random() * DUTCH_BACKGROUNDS.length)];
 
-        // Updated Prompt: Removed Watermark instruction, focusing on NO TEXT.
         const imgPrompt = `Create a ${stylePrompt} illustration of: "${contextSentence}". Key object: "${term}". 
         
         SETTING & CONTEXT:
@@ -417,16 +419,19 @@ export const processBatch = async (
         2. The image should be pure visual art.`;
 
         try {
-          const imgResp = await ai.models.generateContent({
-            model: "gemini-3-pro-image-preview",
-            contents: { parts: [{ text: imgPrompt }] },
-            config: { imageConfig: { imageSize: "1K" } }
-          });
+          // Wrapped in timeout
+          const imgResp = await withTimeout<GenerateContentResponse>(
+              ai.models.generateContent({
+                model: "gemini-3-pro-image-preview",
+                contents: { parts: [{ text: imgPrompt }] },
+                config: { imageConfig: { imageSize: "1K" } }
+              }), 
+              25000 // 25s timeout for images
+          );
           
           const base64Img = imgResp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
           
           if (base64Img) {
-            // Apply Watermark Programmatically using Canvas
             onLog(`   -> Adding watermark...`);
             const watermarkedBase64 = await addWatermark(base64Img);
 
@@ -464,19 +469,25 @@ export const processBatch = async (
            let currentTtsModel = "gemini-2.5-pro-tts"; 
            let attempt = 0;
            const maxRetries = 3;
+           const TIMEOUT_MS = 15000; // 15s timeout per attempt
 
            while (attempt < maxRetries) {
              try {
-               const ttsResp = await ai.models.generateContent({
-                 model: currentTtsModel,
-                 contents: [{ parts: [{ text }] }],
-                 config: {
-                   // REMOVED systemInstruction to prevent 500 errors on Flash model.
-                   responseModalities: ['AUDIO' as any],
-                   // 'Kore' is a standard reliable voice
-                   speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }, 
-                 },
-               });
+               // Verbose log for debugging/feedback
+               // onLog(`   ...Calling ${currentTtsModel} (Attempt ${attempt + 1})`); 
+
+               const ttsResp = await withTimeout<GenerateContentResponse>(
+                   ai.models.generateContent({
+                     model: currentTtsModel,
+                     contents: [{ parts: [{ text }] }],
+                     config: {
+                       // REMOVED systemInstruction to prevent 500 errors on Flash model.
+                       responseModalities: ['AUDIO' as any],
+                       speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } }, 
+                     },
+                   }),
+                   TIMEOUT_MS // Enforce timeout
+               );
 
                const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
                
@@ -491,7 +502,6 @@ export const processBatch = async (
                          const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
                          return urlData.publicUrl;
                       } else {
-                         // Upload failed - likely not recoverable by retrying TTS
                          onLog(`   ⚠️ Storage Upload Error: ${upErr.message}`);
                          return null;
                       }
@@ -502,19 +512,27 @@ export const processBatch = async (
              } catch (e: any) { 
                 const errMsg = e.message || e.toString();
                 
-                // HANDLE 404 (Model Not Found) - Switch to Flash
-                // 'gemini-2.5-pro-tts' is not yet widely available, so this fallback is crucial.
-                if (errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('NOT_FOUND')) {
+                // HANDLE 404 (Model Not Found) or TIMEOUT - Switch to Flash if not already there
+                const is404 = errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('NOT_FOUND');
+                const isTimeout = errMsg.includes('Timeout');
+
+                if (is404 || isTimeout) {
                     // FIX: If we are already on the fallback model, do NOT fallback again (prevents infinite loop)
                     if (currentTtsModel === "gemini-2.5-flash-preview-tts") {
-                        onLog(`   ❌ [TTS] Fallback model '${currentTtsModel}' also failed (404). Aborting audio.`);
+                        const reason = isTimeout ? "Timeout" : "404 Not Found";
+                        onLog(`   ❌ [TTS] Fallback model '${currentTtsModel}' failed (${reason}). Aborting audio.`);
                         return null;
                     }
 
-                    onLog(`   ⚠️ [TTS] Model '${currentTtsModel}' not found (404). Falling back to 'gemini-2.5-flash-preview-tts'.`);
+                    const reason = isTimeout ? "Timeout" : "404 Not Found";
+                    onLog(`   ⚠️ [TTS] Model '${currentTtsModel}' failed (${reason}). Switching to 'gemini-2.5-flash-preview-tts'...`);
                     currentTtsModel = "gemini-2.5-flash-preview-tts";
                     attempt = 0; // Reset attempts for the new model
-                    continue; // Retry with new model
+                    
+                    // Add a small delay before retry to let things settle
+                    await sleep(1000);
+                    onLog(`   🔄 Retrying with Flash model...`);
+                    continue; 
                 }
 
                 // HANDLE 500/503 (Server Error) - Retry
