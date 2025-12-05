@@ -84,7 +84,8 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
   });
 };
 
-// Helper: Add Watermark (Canvas)
+// Helper: Add Watermark (Canvas) AND Resize/Compress
+// OPTIMIZATION: Resizes image to 512x512 and exports as JPEG 0.8 to save storage
 const addWatermark = (base64Image: string): Promise<string> => {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') {
@@ -95,22 +96,28 @@ const addWatermark = (base64Image: string): Promise<string> => {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
+      // OPTIMIZATION: Resize to 512x512. 
+      // This is sufficient for mobile/web cards and drastically reduces file size vs 1024x1024.
+      const TARGET_SIZE = 512;
+      canvas.width = TARGET_SIZE;
+      canvas.height = TARGET_SIZE;
+      
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(img, 0, 0);
+        // Draw image scaled to 512x512
+        ctx.drawImage(img, 0, 0, TARGET_SIZE, TARGET_SIZE);
 
         const text = "@Parlolo";
-        const fontSize = Math.max(16, Math.floor(img.width * 0.035));
+        // Adjust font size relative to new canvas size (approx 20px)
+        const fontSize = Math.max(14, Math.floor(TARGET_SIZE * 0.04));
         const padding = Math.floor(fontSize * 0.8);
 
         ctx.font = `900 ${fontSize}px sans-serif`;
         ctx.textAlign = 'right';
         ctx.textBaseline = 'bottom';
         
-        const x = img.width - padding;
-        const y = img.height - padding;
+        const x = TARGET_SIZE - padding;
+        const y = TARGET_SIZE - padding;
 
         ctx.shadowColor = "rgba(0,0,0,0.8)";
         ctx.shadowBlur = 4;
@@ -121,14 +128,14 @@ const addWatermark = (base64Image: string): Promise<string> => {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
         ctx.fillText(text, x, y);
       }
-      resolve(canvas.toDataURL('image/png').split(',')[1]);
+      // OPTIMIZATION: Export as JPEG with 80% quality. 
+      // PNG (lossless) ~2MB -> JPEG (0.8) ~60KB.
+      resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
     };
     img.onerror = () => resolve(base64Image);
     img.src = `data:image/png;base64,${base64Image}`;
   });
 };
-
-// Removed WAV header creation logic, ElevenLabs returns standard MP3.
 
 const base64ToUint8Array = (base64: string): Uint8Array | null => {
   try {
@@ -159,7 +166,7 @@ export const processBatch = async (
   serviceRoleKey: string,
   geminiKey: string,
   elevenLabsKey: string,
-  voiceIds: VoiceIdConfig, // UPDATED: Accept Voice ID object
+  voiceIds: VoiceIdConfig,
   supabaseUrl: string,
   targetLangCode: string,
   config: BatchConfig,
@@ -389,14 +396,17 @@ export const processBatch = async (
           const base64Img = imgResp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
           
           if (base64Img) {
-            onLog(`   -> Adding watermark...`);
+            onLog(`   -> Optimizing: Resizing to 512px & Compressing to JPEG...`);
             const watermarkedBase64 = await addWatermark(base64Img);
 
             const rawBytes = base64ToUint8Array(watermarkedBase64);
             if (rawBytes) {
-                const blob = new Blob([rawBytes], { type: 'image/png' });
-                const fileName = `images/${term}_${config.imageStyle}_${Date.now()}.png`;
-                const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
+                // Changed from 'image/png' to 'image/jpeg'
+                const blob = new Blob([rawBytes], { type: 'image/jpeg' });
+                // Changed extension to .jpg
+                const fileName = `images/${term}_${config.imageStyle}_${Date.now()}.jpg`;
+                
+                const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/jpeg' });
                 if (!upErr) {
                    const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
                    await supabase.from('word_images').upsert({
@@ -404,7 +414,7 @@ export const processBatch = async (
                      style: config.imageStyle, 
                      image_url: urlData.publicUrl
                    }, { onConflict: 'word_id, style' });
-                   onLog(`✅ Image uploaded.`);
+                   onLog(`✅ Image uploaded (Optimized).`);
                 }
             }
           }
@@ -420,7 +430,6 @@ export const processBatch = async (
         if (!elevenLabsKey) {
             onLog(`   ❌ Skipping Audio: No ElevenLabs Key provided.`);
         } else {
-            // UPDATED: Function now accepts specificVoiceId
             const generateAndUploadTTS = async (text: string, pathPrefix: string, specificVoiceId: string): Promise<string | null> => {
                if (!text) return null;
                
@@ -429,7 +438,6 @@ export const processBatch = async (
 
                while (attempt < maxRetries) {
                  try {
-                   // Use the passed specificVoiceId
                    const url = `https://api.elevenlabs.io/v1/text-to-speech/${specificVoiceId}?output_format=mp3_44100_128`;
                    
                    const response = await fetch(url, {
@@ -489,7 +497,6 @@ export const processBatch = async (
                     if (article && (article === 'de' || article === 'het')) {
                         textToSpeak = `${article} ${term}`;
                     }
-                    // Pass word voice ID
                     const wordAudioUrl = await generateAndUploadTTS(textToSpeak, 'audio/words', voiceIds.word);
                     if (wordAudioUrl) {
                        await supabase.from('words').update({ pronunciation_audio_url: wordAudioUrl }).eq('id', wordId);
@@ -511,9 +518,7 @@ export const processBatch = async (
                           onLog(`   ⏭️ [Example ${sIndex + 1}] Audio exists. Skipping.`);
                      } else {
                          await sleep(500); 
-                         // SELECT VOICE ID BASED ON INDEX
                          const targetVoiceId = (sIndex === 0) ? voiceIds.ex1 : voiceIds.ex2;
-                         
                          const exUrl = await generateAndUploadTTS(ex.dutch, 'audio/examples', targetVoiceId);
                          if (exUrl) {
                             await supabase.from('examples').update({ audio_url: exUrl })

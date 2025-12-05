@@ -148,8 +148,9 @@ export const playErrorSound = async () => {
 
 /**
  * Adds a watermark to the bottom right of the image using HTML5 Canvas.
+ * RESIZES to 512x512 and COMPRESSES to JPEG (0.8) to save bandwidth/storage.
  * @param base64Image Raw base64 string (no data prefix)
- * @returns Promise resolving to new base64 string
+ * @returns Promise resolving to new base64 string (JPEG)
  */
 const addWatermark = (base64Image: string): Promise<string> => {
   return new Promise((resolve) => {
@@ -157,25 +158,26 @@ const addWatermark = (base64Image: string): Promise<string> => {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
+      const TARGET_SIZE = 512;
+      canvas.width = TARGET_SIZE;
+      canvas.height = TARGET_SIZE;
+      
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        // 1. Draw Original Image
-        ctx.drawImage(img, 0, 0);
+        // 1. Draw Original Image Scaled
+        ctx.drawImage(img, 0, 0, TARGET_SIZE, TARGET_SIZE);
 
         // 2. Configure Watermark Text
         const text = "@Parlolo";
-        // Dynamic font size: 3% of image width, min 16px
-        const fontSize = Math.max(16, Math.floor(img.width * 0.035));
+        const fontSize = Math.max(14, Math.floor(TARGET_SIZE * 0.04));
         const padding = Math.floor(fontSize * 0.8);
 
         ctx.font = `900 ${fontSize}px sans-serif`; // Extra Bold
         ctx.textAlign = 'right';
         ctx.textBaseline = 'bottom';
         
-        const x = img.width - padding;
-        const y = img.height - padding;
+        const x = TARGET_SIZE - padding;
+        const y = TARGET_SIZE - padding;
 
         // 3. Draw Shadow/Stroke (for contrast on any background)
         ctx.shadowColor = "rgba(0,0,0,0.8)";
@@ -189,8 +191,8 @@ const addWatermark = (base64Image: string): Promise<string> => {
         ctx.fillText(text, x, y);
       }
       
-      // Return clean Base64 (strip prefix)
-      const dataUrl = canvas.toDataURL('image/png');
+      // Return clean Base64 (strip prefix) in JPEG format
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
       resolve(dataUrl.split(',')[1]);
     };
     img.onerror = () => {
