@@ -24,7 +24,8 @@ const getEnv = (key: string) => {
 };
 
 const apiKey = getEnv('VITE_GEMINI_API_KEY') || getEnv('API_KEY');
-const elevenLabsKey = getEnv('VITE_ELEVENLABS_API_KEY');
+// Use env var or the provided hardcoded key as fallback
+const elevenLabsKey = getEnv('VITE_ELEVENLABS_API_KEY') || '8907edb0434320a0def2afad8da48e900ec0da915a613e1baba0bc998197535f';
 
 const ai = new GoogleGenAI({ apiKey });
 
@@ -426,7 +427,10 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
   console.log(`Using ElevenLabs TTS: ${text.substring(0, 20)}...`);
 
   try {
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`, {
+    // FIX: output_format moved to URL query parameter to avoid 400 error
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128`;
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Accept': 'audio/mpeg',
@@ -436,7 +440,7 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
       body: JSON.stringify({
         text: text,
         model_id: "eleven_multilingual_v2", // Best for Dutch
-        output_format: "mp3_44100_128", // Standard Web MP3
+        // output_format: "mp3_44100_128", // REMOVED from body
         voice_settings: {
           stability: 0.5,
           similarity_boost: 0.75
@@ -445,11 +449,11 @@ export const fetchTTS = async (text: string): Promise<string | null> => {
     });
 
     if (!response.ok) {
-      const err = await response.json();
+      const err = await response.json().catch(() => ({ detail: response.statusText }));
       console.error("ElevenLabs API Error:", err);
       if (response.status === 401) throw new Error("Invalid ElevenLabs API Key (401)");
       if (response.status === 429) throw new Error("ElevenLabs Quota Exceeded (429)");
-      throw new Error(`ElevenLabs Error: ${response.statusText}`);
+      throw new Error(`ElevenLabs Error: ${response.status} - ${JSON.stringify(err)}`);
     }
 
     const blob = await response.blob();

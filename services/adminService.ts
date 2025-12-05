@@ -423,7 +423,10 @@ export const processBatch = async (
 
                while (attempt < maxRetries) {
                  try {
-                   const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`, {
+                   // FIX: output_format moved to URL query parameter to avoid 400 error
+                   const url = `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}?output_format=mp3_44100_128`;
+                   
+                   const response = await fetch(url, {
                       method: 'POST',
                       headers: {
                         'Accept': 'audio/mpeg',
@@ -433,7 +436,7 @@ export const processBatch = async (
                       body: JSON.stringify({
                         text: text,
                         model_id: "eleven_multilingual_v2",
-                        output_format: "mp3_44100_128",
+                        // output_format: "mp3_44100_128", // REMOVED
                         voice_settings: { stability: 0.5, similarity_boost: 0.75 }
                       })
                    });

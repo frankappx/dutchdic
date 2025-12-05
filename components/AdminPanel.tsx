@@ -47,7 +47,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     
     if (envUrl) setSupabaseUrl(envUrl);
     if (envGemini) setGeminiKey(envGemini);
-    if (envEleven) setElevenLabsKey(envEleven);
+    
+    // Use env var if available, otherwise use the hardcoded key provided by user
+    if (envEleven) {
+      setElevenLabsKey(envEleven);
+    } else {
+      setElevenLabsKey('8907edb0434320a0def2afad8da48e900ec0da915a613e1baba0bc998197535f');
+    }
   }, []);
 
   useEffect(() => {
