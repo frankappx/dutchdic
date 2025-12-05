@@ -107,7 +107,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    console.log("LingoPop: Loaded v2.7 (Admin Panel Included)");
+    console.log("LingoPop: Loaded v2.8 (LowerCase Fix + Healing Anime)");
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     window.addEventListener('online', handleOnline);

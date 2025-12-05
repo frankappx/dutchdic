@@ -360,7 +360,7 @@ export const generateVisualization = async (
 ): Promise<{ data: string | null; error: string | null }> => {
   const stylePrompts: Record<string, string> = {
     cartoon: 'fun, energetic cartoon style',
-    ghibli: 'Studio Ghibli anime style, detailed backgrounds, soft colors',
+    ghibli: 'healing slice-of-life anime style, detailed backgrounds, soft colors', // CHANGED
     flat: 'minimalist flat design, vector art, vibrant colors',
     watercolor: 'soft artistic watercolor painting',
     pixel: '8-bit pixel art, retro game style',

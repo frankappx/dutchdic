@@ -18,58 +18,61 @@ export interface BatchConfig {
   imageStyle: ImageStyle;
 }
 
-// Rich Dutch Cultural Contexts
+// Rich Dutch Cultural Contexts (Enhanced with specific locations and lifestyles)
 const DUTCH_BACKGROUNDS = [
   // Iconic Cityscapes & Architecture
   "Amsterdam Canal Ring at twilight with illuminated gable houses",
   "Rijksmuseum with cyclists passing by in the foreground",
-  "Modern Rotterdam skyline featuring the Erasmus Bridge",
-  "Yellow Cube Houses in Rotterdam",
-  "Utrecht's Dom Tower overlooking the unique wharf cellars",
+  "Modern Rotterdam skyline featuring the Erasmus Bridge and skyscrapers",
+  "Yellow Cube Houses in Rotterdam against a blue sky",
+  "Utrecht's Dom Tower overlooking the unique wharf cellars and canals",
   "The Binnenhof parliament buildings and Hofvijver lake in The Hague",
   "Delft Market Square with the New Church and historic City Hall",
-  "Maastricht's Vrijthof square with ancient churches",
-  "Leiden's Molen de Valk (windmill in the city center)",
-  "Groningen Museum's colorful and eccentric modern architecture",
-  "Typical Dutch brick row houses with large windows",
+  "Maastricht's Vrijthof square with ancient churches and outdoor terraces",
+  "Leiden's Molen de Valk, a large stone windmill in the city center",
+  "Groningen Museum's colorful and eccentric modern architecture on the water",
+  "Typical Dutch brick row houses with large windows and no curtains",
+  "Haarlem Grote Markt with the massive St. Bavo Church",
   
   // Water Management & Windmills
-  "Historic windmills at Kinderdijk during a scenic sunset",
-  "Zaanse Schans with green wooden houses and working windmills",
-  "The massive Afsluitdijk causeway stretching across the sea",
-  "Giethoorn village with thatched roof farmhouses and canals",
-  "A classic white Dutch drawbridge opening for a sailboat",
-  "A steam pumping station (Woudagemaal) in a flat polder landscape",
+  "Historic windmills at Kinderdijk lined up along the water at sunset",
+  "Zaanse Schans with green wooden houses, small bridges and working windmills",
+  "The massive Afsluitdijk causeway stretching endlessly across the sea",
+  "Giethoorn village with thatched roof farmhouses, canals and small boats",
+  "A classic white Dutch wooden drawbridge opening for a sailboat",
+  "The Woudagemaal steam pumping station in a flat polder landscape",
   "Houseboats docked along a city canal with flower pots on deck",
-  "A modern storm surge barrier (Delta Works)",
+  "The Delta Works storm surge barrier against the North Sea",
   
   // Nature & Agriculture
-  "Vibrant tulip fields in Lisse (springtime colors)",
-  "Rolling sand dunes along the North Sea coast with tall grass",
-  "Purple heather fields in Hoge Veluwe National Park",
-  "Texel island red lighthouse standing on a sandy beach",
-  "Friesian black-and-white cows grazing in a flat green meadow",
-  "A long straight dike road lined with tall trees",
-  "Orchards in blossom in the Betuwe region",
+  "Vibrant tulip fields in Lisse (strips of red, yellow, pink)",
+  "Rolling sand dunes along the North Sea coast with tall marram grass",
+  "Purple heather fields in Hoge Veluwe National Park with a lone tree",
+  "Texel island red lighthouse standing on a wide sandy beach",
+  "Friesian black-and-white cows grazing in a flat green meadow with ditches",
+  "A long straight dike road lined with tall trees and green fields",
+  "Orchards in blossom in the Betuwe region in spring",
+  "Sheep grazing on a green dike with the sea in the background",
   
   // Dutch Lifestyle & Gezelligheid
-  "Inside a cozy 'Brown Café' with dark wooden interior and candles",
+  "Inside a cozy 'Brown Café' with dark wooden interior, candles and beer",
   "People cycling in the rain with umbrellas (quintessential Dutch weather)",
-  "A massive multi-story bicycle parking garage near a train station",
-  "A bustling street market selling cheese rounds and fresh flowers",
-  "People eating raw herring at a street fish stall (Haringhandel)",
-  "Ice skating on a frozen canal with Koek-en-zopie stalls",
+  "A massive multi-story bicycle parking garage near a central train station",
+  "A bustling street market selling cheese rounds (Gouda/Alkmaar)",
+  "People eating raw herring at a street fish stall (holding fish by tail)",
+  "Ice skating on a frozen canal with Koek-en-zopie stalls nearby",
   "A parent riding a 'Bakfiets' (cargo bike) with children and groceries",
   "People relaxing on a sunny terrace (Terrasje pakken) in a city square",
-  "King's Day celebration with orange decorations and canal boats",
+  "King's Day celebration with orange decorations, clothes and canal boats",
+  "A living room with very steep Dutch stairs visible",
   
   // Modern & Diverse
-  "Modern architecture of Rotterdam Central Station",
-  "A multicultural street market in a Dutch city neighborhood",
-  "Commuters on a busy train platform during rush hour",
-  "Contemporary Dutch residential architecture in Almere",
-  "Students cycling to university in a historic town",
-  "A modern library converted from an old industrial building (LocHal)"
+  "Modern architecture of Rotterdam Central Station (angular wood and steel)",
+  "A multicultural street market with diverse food stalls and people",
+  "Commuters on a busy train platform during rush hour (NS trains)",
+  "Contemporary Dutch residential architecture in Almere or IJburg",
+  "Students cycling to university in a historic town like Leiden or Groningen",
+  "A modern library converted from an old industrial building (like LocHal)"
 ];
 
 // Helper: Pause execution
@@ -390,7 +393,7 @@ export const processBatch = async (
         
         const stylePrompts: Record<string, string> = {
           cartoon: 'fun, energetic cartoon style',
-          ghibli: 'Studio Ghibli anime style, detailed backgrounds, soft colors',
+          ghibli: 'healing slice-of-life anime style, detailed backgrounds, soft colors, relaxing atmosphere', // CHANGED from Studio Ghibli
           flat: 'minimalist flat design, vector art, vibrant colors',
           watercolor: 'soft artistic watercolor painting',
           pixel: '8-bit pixel art, retro game style',
