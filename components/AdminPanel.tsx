@@ -15,7 +15,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [geminiKey, setGeminiKey] = useState('');
   const [elevenLabsKey, setElevenLabsKey] = useState('');
-  const [voiceId, setVoiceId] = useState('AyQGttFzg1EY7EIKkpHs'); // Default to user's requested ID
+  const [voiceId, setVoiceId] = useState(''); // Default to empty (will use Rachel)
   
   const [targetLang, setTargetLang] = useState('en'); // Default to English
   const [wordInput, setWordInput] = useState('');
@@ -80,10 +80,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       alert("Please enter the Supabase Service Role Key");
       return;
     }
-    if (!voiceId) {
-      alert("Please enter a Voice ID");
-      return;
-    }
+    
+    // UPDATED: Allow empty voiceId, default to Rachel if empty
+    const finalVoiceId = voiceId.trim() || '21m00Tcm4TlvDq8ikWAM';
+
     const words = wordInput.split('\n').filter(w => w.trim().length > 0);
     if (words.length === 0) {
       alert("Please enter at least one word");
@@ -104,6 +104,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
     setIsProcessing(true);
     setLogs([`🚀 Started batch process for ${words.length} words...`]);
+    if (!voiceId.trim()) {
+        addLog(`ℹ️ No Voice ID provided. Using default: Rachel (${finalVoiceId})`);
+    } else {
+        addLog(`🎙️ Using Custom Voice ID: ${finalVoiceId}`);
+    }
     
     const config: BatchConfig = {
       tasks,
@@ -111,7 +116,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       overwriteAudio
     };
 
-    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, voiceId, supabaseUrl, targetLang, config, addLog);
+    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, finalVoiceId, supabaseUrl, targetLang, config, addLog);
     
     setIsProcessing(false);
   };
@@ -202,11 +207,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                      type="text" 
                      value={voiceId} 
                      onChange={e => setVoiceId(e.target.value)} 
-                     placeholder="e.g. 21m00Tcm4TlvDq8ikWAM"
-                     className="w-full bg-gray-50 border p-2 rounded-lg text-sm font-mono text-pop-teal"
+                     placeholder="Leave blank for default (Rachel)"
+                     className="w-full bg-gray-50 border p-2 rounded-lg text-sm font-mono text-pop-teal placeholder:text-gray-300"
                    />
                    <p className="text-[10px] text-gray-400 mt-1">
-                     Try "21m00Tcm4TlvDq8ikWAM" (Rachel) if your custom voice limit is reached.
+                     Empty = Standard Rachel (21m00Tcm4TlvDq8ikWAM). Custom IDs require paid plan.
                    </p>
                  </div>
               </div>
