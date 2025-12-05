@@ -3,27 +3,29 @@ import { DictionaryEntry, ImageContext } from "../types";
 import { SYSTEM_INSTRUCTION_BASE } from "../constants";
 import { supabase } from "./supabaseClient";
 
-// Initialize Gemini Client
-const getApiKey = () => {
-  let key = '';
+// Initialize Keys
+const getEnv = (key: string) => {
+  let value = '';
   try {
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env) {
       // @ts-ignore
-      key = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.API_KEY || '';
+      value = import.meta.env[key] || '';
     }
   } catch (e) {}
-  if (!key) {
+  if (!value) {
     try {
       if (typeof process !== 'undefined' && process.env) {
-        key = process.env.VITE_GEMINI_API_KEY || process.env.API_KEY || '';
+        value = process.env[key] || '';
       }
     } catch (e) {}
   }
-  return key;
+  return value;
 };
 
-const apiKey = getApiKey();
+const apiKey = getEnv('VITE_GEMINI_API_KEY') || getEnv('API_KEY');
+const elevenLabsKey = getEnv('VITE_ELEVENLABS_API_KEY');
+
 const ai = new GoogleGenAI({ apiKey });
 
 // --- Helper: Timeout ---
@@ -40,33 +42,16 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 // --- Audio Helpers ---
-function decode(base64: string) {
+
+// Converts Base64 string to ArrayBuffer (Standard for MP3/WAV)
+function base64ToArrayBuffer(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
-  const bytes = new Uint8Array(len + (len % 2));
+  const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
     bytes[i] = binaryString.charCodeAt(i);
   }
-  return bytes;
-}
-
-async function decodeAudioData(
-  data: Uint8Array,
-  ctx: AudioContext,
-  sampleRate: number,
-  numChannels: number,
-): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
-  const frameCount = dataInt16.length / numChannels;
-  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-
-  for (let channel = 0; channel < numChannels; channel++) {
-    const channelData = buffer.getChannelData(channel);
-    for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
-  }
-  return buffer;
+  return bytes.buffer;
 }
 
 let sharedAudioContext: AudioContext | null = null;
@@ -74,7 +59,7 @@ const globalAudioCache: Record<string, string> = {};
 
 const getAudioContext = () => {
   if (!sharedAudioContext) {
-    sharedAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 24000});
+    sharedAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({sampleRate: 44100}); // Standard SR
   }
   return sharedAudioContext;
 };
@@ -238,18 +223,14 @@ export const generateDefinition = async (
         console.log("⚡️ Cache Hit: Loaded from Database (RPC)", data);
         
         const styles = data.images_by_style || {};
-        // STRICT STYLE CHECK: Only return the image if it matches the preferred style.
-        // Do NOT fallback to 'ghibli' or random styles.
         const dbImageUrl = styles[preferredStyle] || undefined;
         
-        // Robustly map Examples: handle 'target'/'source' AND 'dutch_sentence'/'translation'
         const mappedExamples = (data.examples || []).map((ex: any) => ({
           target: ex.target || ex.dutch_sentence || "",
           source: ex.source || ex.translation || "",
           audioUrl: ex.audio_url
         }));
 
-        // Robustly map Grammar: Fallback to partOfSpeech if in grammar_data
         const mergedGrammar = {
           ...(data.grammar_data || {}),
           partOfSpeech: data.part_of_speech || data.grammar_data?.partOfSpeech
@@ -344,7 +325,6 @@ export const generateDefinition = async (
 
     const json = JSON.parse(text);
 
-    // Map new schema keys to app keys
     if (json.examples && Array.isArray(json.examples)) {
       json.examples = json.examples.map((ex: any) => ({
         target: ex.dutch || ex.target,
@@ -400,7 +380,6 @@ export const generateVisualization = async (
      contextPrompt = `Set the scene in a typical ${targetLang} cultural setting.`;
   }
 
-  // Updated Prompt: Explicitly forbid text.
   const prompt = `Create a ${stylePrompt} illustration based on the following sentence: "${context}".
     Key object/concept to highlight: "${term}".
     Visualize the literal meaning of this sentence.
@@ -418,12 +397,11 @@ export const generateVisualization = async (
         contents: { parts: [{ text: prompt }] },
         config: { imageConfig: { imageSize: "1K" } }
       }),
-      25000 // 25s Timeout for images
+      25000 
     );
 
     for (const part of response.candidates?.[0]?.content?.parts || []) {
       if (part.inlineData) {
-        // Manually add the watermark here
         const watermarkedBase64 = await addWatermark(part.inlineData.data);
         return { data: watermarkedBase64, error: null };
       }
@@ -435,48 +413,66 @@ export const generateVisualization = async (
   }
 };
 
-// Retry and Timeout Logic for TTS
+// --- ELEVENLABS TTS ---
+
+// Standard Dutch-friendly voice (Rachel is generally good and stable)
+// '21m00Tcm4TlvDq8ikWAM' = Rachel
+// 'Xb7hH8MSUDp1zsieKSV9' = Alice
+// 'jsCqWAovK2LkecY7zXl4' = Freya
+const ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; 
+
 export const fetchTTS = async (text: string): Promise<string | null> => {
-  const ttsModel = "gemini-2.5-flash-preview-tts";
-  console.log(`Using TTS model: ${ttsModel}`);
-  
-  let attempt = 0;
-  const maxRetries = 3;
-  
-  while (attempt < maxRetries) {
-    try {
-      const response = await withTimeout<GenerateContentResponse>(
-          ai.models.generateContent({
-            model: ttsModel,
-            contents: [{ parts: [{ text: text }] }],
-            config: {
-              responseModalities: ['AUDIO' as any],
-              speechConfig: {
-                voiceConfig: {
-                  // Switched to 'Fenrir' (often handles multilingual better than Kore)
-                  prebuiltVoiceConfig: { voiceName: 'Fenrir' }, 
-                },
-              },
-            },
-          }),
-          15000 // 15s Timeout
-      );
-      return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data || null;
-    } catch (error: any) {
-      attempt++;
-      console.warn(`TTS Attempt ${attempt} failed:`, error.message);
-      
-      const errMsg = error.message || "";
-      if (errMsg.includes('429')) throw new Error("TTS Quota Exceeded (429)"); // Fatal
-      
-      if (attempt >= maxRetries) {
-        return null;
-      }
-      // Small backoff
-      await sleep(1000);
-    }
+  if (!elevenLabsKey) {
+     console.error("ElevenLabs Key missing. Please add VITE_ELEVENLABS_API_KEY to your environment.");
+     throw new Error("TTS Configuration Error: API Key missing.");
   }
-  return null;
+
+  console.log(`Using ElevenLabs TTS: ${text.substring(0, 20)}...`);
+
+  try {
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'audio/mpeg',
+        'Content-Type': 'application/json',
+        'xi-api-key': elevenLabsKey
+      },
+      body: JSON.stringify({
+        text: text,
+        model_id: "eleven_multilingual_v2", // Best for Dutch
+        output_format: "mp3_44100_128", // Standard Web MP3
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      console.error("ElevenLabs API Error:", err);
+      if (response.status === 401) throw new Error("Invalid ElevenLabs API Key (401)");
+      if (response.status === 429) throw new Error("ElevenLabs Quota Exceeded (429)");
+      throw new Error(`ElevenLabs Error: ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    // Convert Blob -> Base64 for app compatibility
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        // Remove data URL prefix (e.g. "data:audio/mpeg;base64,")
+        resolve(base64String.split(',')[1]); 
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+  } catch (error: any) {
+    console.warn("TTS Generation failed:", error.message);
+    throw error;
+  }
 };
 
 const playAudioBuffer = async (audioBuffer: AudioBuffer, ctx: AudioContext) => {
@@ -492,9 +488,17 @@ export const playAudio = async (base64Audio: string): Promise<void> => {
   try {
     const ctx = getAudioContext();
     if (ctx.state === 'suspended') await ctx.resume();
-    const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
+    
+    // NATIVE BROWSER DECODING (Works for MP3/WAV/etc)
+    const arrayBuffer = base64ToArrayBuffer(base64Audio);
+    
+    // Decode data (promisified for older browsers if needed, but modern use promise)
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    
     await playAudioBuffer(audioBuffer, ctx);
-  } catch (error) {}
+  } catch (error) {
+    console.error("Failed to play audio:", error);
+  }
 };
 
 // Play from URL (e.g., from Supabase Storage)
@@ -532,7 +536,7 @@ export const playTTS = async (text: string, audioUrl?: string): Promise<void> =>
     return;
   }
 
-  // 3. Fetch from API
+  // 3. Fetch from API (ElevenLabs)
   try {
     const data = await fetchTTS(text);
     if (data) {

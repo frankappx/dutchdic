@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { processBatch, BatchConfig } from '../services/adminService';
 import { LANGUAGES } from '../constants';
@@ -14,7 +13,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   
   const [serviceKey, setServiceKey] = useState('');
   const [supabaseUrl, setSupabaseUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
+  const [geminiKey, setGeminiKey] = useState('');
+  const [elevenLabsKey, setElevenLabsKey] = useState('');
   
   const [targetLang, setTargetLang] = useState('en'); // Default to English
   const [wordInput, setWordInput] = useState('');
@@ -31,6 +31,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     audioEx2: true
   });
   const [selectedStyle, setSelectedStyle] = useState<ImageStyle>('ghibli');
+  const [overwriteAudio, setOverwriteAudio] = useState(false);
 
   const styles: ImageStyle[] = ['flat', 'cartoon', 'ghibli', 'watercolor', 'pixel', 'realistic'];
 
@@ -39,10 +40,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     // @ts-ignore
     const envUrl = import.meta.env.VITE_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
     // @ts-ignore
-    const envApi = import.meta.env.VITE_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    const envGemini = import.meta.env.VITE_GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
+    // @ts-ignore
+    const envEleven = import.meta.env.VITE_ELEVENLABS_API_KEY || process.env.VITE_ELEVENLABS_API_KEY;
     
     if (envUrl) setSupabaseUrl(envUrl);
-    if (envApi) setApiKey(envApi);
+    if (envGemini) setGeminiKey(envGemini);
+    if (envEleven) setElevenLabsKey(envEleven);
   }, []);
 
   useEffect(() => {
@@ -80,16 +84,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       alert("Please select at least one task.");
       return;
     }
+    
+    if (anyAudio && !elevenLabsKey) {
+       alert("ElevenLabs Key is required for audio tasks.");
+       return;
+    }
 
     setIsProcessing(true);
     setLogs([`🚀 Started batch process for ${words.length} words...`]);
     
     const config: BatchConfig = {
       tasks,
-      imageStyle: selectedStyle
+      imageStyle: selectedStyle,
+      overwriteAudio
     };
 
-    await processBatch(words, serviceKey, apiKey, supabaseUrl, targetLang, config, addLog);
+    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, supabaseUrl, targetLang, config, addLog);
     
     setIsProcessing(false);
   };
@@ -136,8 +146,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                    <input value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} className="w-full bg-gray-50 border p-2 rounded text-sm font-mono" />
                  </div>
                  <div>
-                   <label className="text-xs font-bold text-gray-400">Gemini API Key</label>
-                   <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} className="w-full bg-gray-50 border p-2 rounded text-sm font-mono" />
+                   <label className="text-xs font-bold text-gray-400">Gemini API Key (Text & Images)</label>
+                   <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} className="w-full bg-gray-50 border p-2 rounded text-sm font-mono" />
+                 </div>
+                 <div>
+                   <label className="text-xs font-bold text-gray-400">ElevenLabs API Key (Audio)</label>
+                   <input type="password" value={elevenLabsKey} onChange={e => setElevenLabsKey(e.target.value)} className="w-full bg-gray-50 border p-2 rounded text-sm font-mono" placeholder="sk_..." />
                  </div>
                  <div>
                    <label className="text-xs font-bold text-red-400">Supabase Service Role Key (Required)</label>
@@ -219,11 +233,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
 
                 <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                   <div className="mb-2">
-                    <span className="font-bold text-gray-700 block">C. Audio (TTS)</span>
-                    <span className="text-xs text-gray-400">Select which parts to generate:</span>
+                    <span className="font-bold text-gray-700 block">C. Audio (ElevenLabs)</span>
+                    <span className="text-xs text-gray-400">Generates High-Quality Dutch Speech (MP3)</span>
                   </div>
                   
-                  <div className="pl-2 space-y-2">
+                  <div className="pl-2 space-y-2 mb-3">
                      <label className="flex items-center cursor-pointer">
                         <input 
                           type="checkbox" 
@@ -251,6 +265,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                         />
                         <span className="text-sm text-gray-600">Example 2</span>
                      </label>
+                  </div>
+
+                  <div className="pt-3 border-t border-gray-200">
+                    <label className="flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={overwriteAudio} 
+                          onChange={e => setOverwriteAudio(e.target.checked)}
+                          className="w-4 h-4 text-red-500 rounded focus:ring-red-500 mr-2"
+                        />
+                        <span className="text-xs font-bold text-red-500">Overwrite Existing Audio</span>
+                    </label>
                   </div>
                 </div>
               </div>

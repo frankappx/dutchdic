@@ -1,10 +1,9 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { ImageStyle } from '../types';
 
 // Configuration for rate limiting
-const DELAY_BETWEEN_WORDS_MS = 5000; 
+const DELAY_BETWEEN_WORDS_MS = 3000; 
 const STORAGE_BUCKET = 'dictionary-assets';
 
 export interface BatchConfig {
@@ -16,9 +15,9 @@ export interface BatchConfig {
     audioEx2: boolean;
   };
   imageStyle: ImageStyle;
+  overwriteAudio: boolean;
 }
 
-// Rich Dutch Cultural Contexts
 const DUTCH_BACKGROUNDS = [
   "Amsterdam Canal Ring at twilight with illuminated gable houses",
   "Rijksmuseum with cyclists passing by in the foreground",
@@ -123,41 +122,7 @@ const addWatermark = (base64Image: string): Promise<string> => {
   });
 };
 
-// Helper: Create WAV Header
-const createWavFile = (pcmData: Uint8Array): Blob => {
-  const numChannels = 1;
-  const sampleRate = 24000;
-  const bitsPerSample = 16;
-  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
-  const blockAlign = numChannels * (bitsPerSample / 8);
-  const dataSize = pcmData.length;
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(view, 8, 'WAVE');
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-  writeString(view, 36, 'data');
-  view.setUint32(40, dataSize, true);
-  const pcmBytes = new Uint8Array(buffer, 44);
-  pcmBytes.set(pcmData);
-
-  return new Blob([buffer], { type: 'audio/wav' });
-};
-
-const writeString = (view: DataView, offset: number, string: string) => {
-  for (let i = 0; i < string.length; i++) {
-    view.setUint8(offset + i, string.charCodeAt(i));
-  }
-};
+// Removed WAV header creation logic, ElevenLabs returns standard MP3.
 
 const base64ToUint8Array = (base64: string): Uint8Array | null => {
   try {
@@ -183,22 +148,25 @@ const getLanguageName = (code: string) => {
   return map[code] || 'English';
 };
 
+const ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // Rachel
+
 export const processBatch = async (
   words: string[],
   serviceRoleKey: string,
-  apiKey: string,
+  geminiKey: string,
+  elevenLabsKey: string,
   supabaseUrl: string,
   targetLangCode: string,
   config: BatchConfig,
   onLog: (msg: string) => void
 ) => {
-  if (!serviceRoleKey || !supabaseUrl || !apiKey) {
+  if (!serviceRoleKey || !supabaseUrl || !geminiKey) {
     onLog("❌ Error: Missing credentials.");
     return;
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: geminiKey });
   const targetLangName = getLanguageName(targetLangCode);
   
   const audioTasks = [];
@@ -207,7 +175,7 @@ export const processBatch = async (
   if (config.tasks.audioEx2) audioTasks.push("Ex2");
 
   onLog(`🌍 Output Language: ${targetLangName} (${targetLangCode})`);
-  onLog(`⚙️ Tasks: ${config.tasks.text ? '[Text] ' : ''}${config.tasks.image ? '[Image: '+config.imageStyle+'] ' : ''}${audioTasks.length > 0 ? '[Audio: '+audioTasks.join(',')+']' : ''}`);
+  onLog(`⚙️ Tasks: ${config.tasks.text ? '[Text] ' : ''}${config.tasks.image ? '[Image: '+config.imageStyle+'] ' : ''}${audioTasks.length > 0 ? '[Audio (ElevenLabs)]' : ''}`);
 
   for (let i = 0; i < words.length; i++) {
     const term = words[i].trim();
@@ -218,6 +186,7 @@ export const processBatch = async (
 
     let wordId: string | null = null;
     let wordData: any = null;
+    let existingWordRow: any = null;
 
     try {
       // --- PHASE A: TEXT CONTENT ---
@@ -248,7 +217,6 @@ export const processBatch = async (
           STRICTLY OUTPUT VALID JSON.
         `;
 
-        // Wrap in timeout to prevent hanging
         const textResp = await withTimeout<GenerateContentResponse>(
             ai.models.generateContent({
               model: "gemini-2.5-flash",
@@ -286,7 +254,7 @@ export const processBatch = async (
                 }
               }
             }),
-            20000 // 20s timeout for text
+            20000 
         );
 
         let rawText = textResp.text || "{}";
@@ -294,7 +262,6 @@ export const processBatch = async (
           wordData = JSON.parse(rawText);
         } catch (e) { throw new Error("JSON Parse failed"); }
 
-        // Save Word Base
         const { data: wordRow, error: wordErr } = await supabase
           .from('words')
           .upsert({ 
@@ -302,13 +269,13 @@ export const processBatch = async (
             part_of_speech: wordData.partOfSpeech,
             grammar_data: wordData.grammar_data
           }, { onConflict: 'term' })
-          .select()
+          .select('id, pronunciation_audio_url') 
           .single();
         
         if (wordErr) throw wordErr;
         wordId = wordRow.id;
+        existingWordRow = wordRow;
 
-        // Save Localized Content
         await supabase.from('localized_content').upsert({
           word_id: wordId,
           language_code: targetLangCode,
@@ -316,11 +283,9 @@ export const processBatch = async (
           usage_note: wordData.usageNote
         }, { onConflict: 'word_id, language_code' });
 
-        // Save Examples
         if (wordData.examples) {
           let idx = 0;
           for (const ex of wordData.examples) {
-            // CRITICAL: Clear old audio_url for examples when text regenerates
             await supabase.from('examples').upsert({
               word_id: wordId,
               language_code: targetLangCode,
@@ -332,10 +297,10 @@ export const processBatch = async (
             idx++;
           }
         }
-        onLog(`✅ Text saved (Example audio reset).`);
+        onLog(`✅ Text saved.`);
       }
 
-      // --- LOOKUP LOGIC: FETCH EXISTING WORD IF TEXT TASK IS SKIPPED ---
+      // --- LOOKUP ---
       const hasAudioTask = config.tasks.audioWord || config.tasks.audioEx1 || config.tasks.audioEx2;
       
       if (!wordId && (config.tasks.image || hasAudioTask)) {
@@ -343,45 +308,36 @@ export const processBatch = async (
          
          const { data: existWord } = await supabase
             .from('words')
-            .select('id')
+            .select('id, grammar_data, pronunciation_audio_url')
             .eq('term', term)
             .maybeSingle(); 
 
          if (!existWord) {
            onLog(`⚠️ Word "${term}" NOT FOUND in database. Skipping Image/Audio.`);
-           onLog(`   Please run "Text Content" task first for this word.`);
            continue; 
          }
          
          wordId = existWord.id;
+         existingWordRow = existWord;
          onLog(`   -> Found ID: ${wordId}`);
 
-         // We need 'wordData' (specifically examples) for Image context and Audio text
          if (!wordData) {
-            // Check if we need to fetch grammar data for intelligent audio generation (article)
-            const { data: wordRow } = await supabase
-               .from('words')
-               .select('grammar_data')
-               .eq('id', wordId)
-               .single();
-            
             const { data: existExs } = await supabase
               .from('examples')
-              .select('dutch_sentence, sentence_index')
+              .select('dutch_sentence, sentence_index, audio_url')
               .eq('word_id', wordId)
               .eq('language_code', targetLangCode)
               .order('sentence_index', { ascending: true });
             
-            // Reconstruct a minimal wordData object
             wordData = { 
-              grammar_data: wordRow?.grammar_data || {},
+              grammar_data: existingWordRow.grammar_data || {},
               examples: existExs ? existExs.map((e: any) => ({ 
                 dutch: e.dutch_sentence, 
-                index: e.sentence_index 
+                index: e.sentence_index,
+                hasAudio: !!e.audio_url 
               })) : [] 
             };
             
-            // Fallback for image context
             if (config.tasks.image && (!wordData.examples || wordData.examples.length === 0)) {
                const { data: anyEx } = await supabase
                  .from('examples')
@@ -399,9 +355,7 @@ export const processBatch = async (
       // --- PHASE B: IMAGE GENERATION ---
       if (config.tasks.image && wordId) {
         onLog(`🎨 Painting illustration (${config.imageStyle})...`);
-        
         const contextSentence = wordData?.examples?.[0]?.dutch || term;
-        
         const stylePrompts: Record<string, string> = {
           cartoon: 'fun, energetic cartoon style',
           ghibli: 'healing slice-of-life anime style, detailed backgrounds, soft colors, relaxing atmosphere', 
@@ -411,29 +365,20 @@ export const processBatch = async (
           realistic: 'photorealistic, high detailed'
         };
         const stylePrompt = stylePrompts[config.imageStyle] || stylePrompts['ghibli'];
-        
         const randomBg = DUTCH_BACKGROUNDS[Math.floor(Math.random() * DUTCH_BACKGROUNDS.length)];
 
         const imgPrompt = `Create a ${stylePrompt} illustration of: "${contextSentence}". Key object: "${term}". 
-        
-        SETTING & CONTEXT:
-        - Scene: ${randomBg}.
-        - Atmosphere: Authentic Netherlands.
-        - Characters: If people are shown, ensure a realistic and diverse representation of the Dutch population (including White, Black, Asian, and Middle Eastern backgrounds).
-        
-        STRICT REQUIREMENTS:
-        1. STRICTLY NO TEXT. Do not include any words, letters, labels, or speech bubbles in the image.
-        2. The image should be pure visual art.`;
+        SETTING & CONTEXT: ${randomBg}. Atmosphere: Authentic Netherlands.
+        STRICT REQUIREMENTS: STRICTLY NO TEXT. Pure visual art.`;
 
         try {
-          // Wrapped in timeout
           const imgResp = await withTimeout<GenerateContentResponse>(
               ai.models.generateContent({
                 model: "gemini-3-pro-image-preview",
                 contents: { parts: [{ text: imgPrompt }] },
                 config: { imageConfig: { imageSize: "1K" } }
               }), 
-              25000 // 25s timeout for images
+              25000 
           );
           
           const base64Img = imgResp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
@@ -449,14 +394,12 @@ export const processBatch = async (
                 const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
                 if (!upErr) {
                    const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
-                   
                    await supabase.from('word_images').upsert({
                      word_id: wordId,
                      style: config.imageStyle, 
                      image_url: urlData.publicUrl
                    }, { onConflict: 'word_id, style' });
-                   
-                   onLog(`✅ Image uploaded (with watermark).`);
+                   onLog(`✅ Image uploaded.`);
                 }
             }
           }
@@ -465,126 +408,111 @@ export const processBatch = async (
         }
       }
 
-      // --- PHASE C: AUDIO GENERATION ---
+      // --- PHASE C: AUDIO GENERATION (ELEVENLABS) ---
       if (hasAudioTask && wordId) {
-        onLog(`🗣️ Processing Audio Requests...`);
+        onLog(`🗣️ Processing Audio (ElevenLabs)...`);
         
-        const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
-           if (!text) return null;
-           
-           // DIRECTLY USE FLASH (Removed Loop & Fallback)
-           const ttsModel = "gemini-2.5-flash-preview-tts"; 
-           let attempt = 0;
-           const maxRetries = 3;
-           const TIMEOUT_MS = 15000; 
-
-           while (attempt < maxRetries) {
-             try {
-               const ttsResp = await withTimeout<GenerateContentResponse>(
-                   ai.models.generateContent({
-                     model: ttsModel,
-                     contents: [{ parts: [{ text }] }],
-                     config: {
-                       responseModalities: ['AUDIO' as any],
-                       speechConfig: { 
-                           // Use Fenrir for better multilingual handling
-                           voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } } 
-                       }, 
-                     },
-                   }),
-                   TIMEOUT_MS
-               );
-
-               const audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (!elevenLabsKey) {
+            onLog(`   ❌ Skipping Audio: No ElevenLabs Key provided.`);
+        } else {
+            const generateAndUploadTTS = async (text: string, pathPrefix: string): Promise<string | null> => {
+               if (!text) return null;
                
-               if (audioBase64) {
-                  const pcmData = base64ToUint8Array(audioBase64);
-                  if (pcmData) {
-                      const wavBlob = createWavFile(pcmData);
-                      const fileName = `${pathPrefix}/${term}_${Date.now()}.wav`; 
-                      
-                      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, wavBlob, { contentType: 'audio/wav' });
-                      if (!upErr) {
-                         const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
-                         return urlData.publicUrl;
-                      } else {
-                         onLog(`   ⚠️ Storage Upload Error: ${upErr.message}`);
-                         return null;
-                      }
-                  }
+               let attempt = 0;
+               const maxRetries = 2;
+
+               while (attempt < maxRetries) {
+                 try {
+                   const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`, {
+                      method: 'POST',
+                      headers: {
+                        'Accept': 'audio/mpeg',
+                        'Content-Type': 'application/json',
+                        'xi-api-key': elevenLabsKey
+                      },
+                      body: JSON.stringify({
+                        text: text,
+                        model_id: "eleven_multilingual_v2",
+                        output_format: "mp3_44100_128",
+                        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+                      })
+                   });
+
+                   if (!response.ok) {
+                     if (response.status === 429) throw new Error("Quota Exceeded");
+                     throw new Error(`API Error ${response.status}`);
+                   }
+
+                   const blob = await response.blob();
+                   const fileName = `${pathPrefix}/${term}_${Date.now()}.mp3`; // Note: .mp3 extension
+                   
+                   const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'audio/mpeg' });
+                   if (!upErr) {
+                       const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+                       return urlData.publicUrl;
+                   } else {
+                       onLog(`   ⚠️ Storage Upload Error: ${upErr.message}`);
+                       return null;
+                   }
+
+                 } catch (e: any) { 
+                    attempt++;
+                    if (e.message.includes('Quota')) {
+                        onLog(`   ⚠️ [TTS] Quota Exceeded (429).`);
+                        return null;
+                    }
+                    if (attempt >= maxRetries) onLog(`   ⚠️ [TTS] Generation failed: ${e.message}`);
+                    await sleep(1000);
+                 }
                }
                return null;
+            };
 
-             } catch (e: any) { 
-                const errMsg = e.message || e.toString();
-                
-                // HANDLE 500/503/Timeout - Retry
-                const isRetryable = errMsg.includes('500') || errMsg.includes('503') || errMsg.includes('INTERNAL') || errMsg.includes('Timeout');
-                
-                if (isRetryable) {
-                   attempt++;
-                   if (attempt < maxRetries) {
-                      onLog(`   ⏳ [TTS] Error (${errMsg.includes('Timeout') ? 'Timeout' : '500'}). Retrying (${attempt}/${maxRetries})...`);
-                      await sleep(1500 * attempt); 
-                      continue; 
-                   }
-                }
-                
-                // Quota or 404 on Flash (Fatal)
-                if (errMsg.includes('429') || errMsg.includes('Quota')) {
-                    onLog(`   ⚠️ [TTS] Quota Exceeded (429). Skipping audio.`);
+            // 1. Word Audio
+            if (config.tasks.audioWord) {
+                const wordHasAudio = !!existingWordRow?.pronunciation_audio_url;
+                if (wordHasAudio && !config.overwriteAudio) {
+                     onLog(`   ⏭️ [Word] Audio exists. Skipping.`);
                 } else {
-                    onLog(`   ⚠️ [TTS] Generation failed: ${errMsg}`);
+                    let textToSpeak = term;
+                    const article = wordData?.grammar_data?.article;
+                    if (article && (article === 'de' || article === 'het')) {
+                        textToSpeak = `${article} ${term}`;
+                    }
+                    const wordAudioUrl = await generateAndUploadTTS(textToSpeak, 'audio/words');
+                    if (wordAudioUrl) {
+                       await supabase.from('words').update({ pronunciation_audio_url: wordAudioUrl }).eq('id', wordId);
+                       onLog(`   -> [Word] MP3 saved.`);
+                    }
                 }
-                return null; 
-             }
-           }
-           onLog(`   ⚠️ [TTS] Failed after ${maxRetries} attempts.`);
-           return null;
-        };
-
-        // 1. Word Audio
-        if (config.tasks.audioWord) {
-            // INTELLIGENT PRONUNCIATION FIX:
-            // Check if we have an article (de/het) to force Dutch pronunciation for ambiguous words like 'lamp' or 'water'.
-            let textToSpeak = term;
-            const article = wordData?.grammar_data?.article;
-            
-            // If it's a noun with an article, pronounce the article too (e.g. "de lamp")
-            if (article && (article === 'de' || article === 'het')) {
-                textToSpeak = `${article} ${term}`;
-                onLog(`   -> Optimized prompt: "${textToSpeak}" (ensures Dutch pronunciation)`);
             }
 
-            const wordAudioUrl = await generateAndUploadTTS(textToSpeak, 'audio/words');
-            if (wordAudioUrl) {
-               await supabase.from('words').update({ pronunciation_audio_url: wordAudioUrl }).eq('id', wordId);
-               onLog(`   -> [Word] Audio saved.`);
+            // 2. Examples Audio
+            if (wordData.examples) {
+               let idx = 0;
+               for (const ex of wordData.examples) {
+                  const sIndex = (ex as any).index !== undefined ? (ex as any).index : idx;
+                  const shouldGen = (sIndex === 0 && config.tasks.audioEx1) || (sIndex === 1 && config.tasks.audioEx2);
+
+                  if (shouldGen && ex.dutch) {
+                     const exHasAudio = (ex as any).hasAudio;
+                     if (exHasAudio && !config.overwriteAudio) {
+                          onLog(`   ⏭️ [Example ${sIndex + 1}] Audio exists. Skipping.`);
+                     } else {
+                         await sleep(500); 
+                         const exUrl = await generateAndUploadTTS(ex.dutch, 'audio/examples');
+                         if (exUrl) {
+                            await supabase.from('examples').update({ audio_url: exUrl })
+                              .eq('word_id', wordId)
+                              .eq('language_code', targetLangCode)
+                              .eq('sentence_index', sIndex);
+                            onLog(`   -> [Example ${sIndex + 1}] MP3 saved.`);
+                         }
+                     }
+                  }
+                  idx++;
+               }
             }
-        }
-
-        // 2. Examples Audio
-        if (wordData.examples) {
-           let idx = 0;
-           for (const ex of wordData.examples) {
-              const sIndex = (ex as any).index !== undefined ? (ex as any).index : idx;
-              
-              // Determine if we should generate for this index
-              const shouldGen = (sIndex === 0 && config.tasks.audioEx1) || (sIndex === 1 && config.tasks.audioEx2);
-
-              if (shouldGen && ex.dutch) {
-                 await sleep(500); // Small buffer
-                 const exUrl = await generateAndUploadTTS(ex.dutch, 'audio/examples');
-                 if (exUrl) {
-                    await supabase.from('examples').update({ audio_url: exUrl })
-                      .eq('word_id', wordId)
-                      .eq('language_code', targetLangCode)
-                      .eq('sentence_index', sIndex);
-                    onLog(`   -> [Example ${sIndex + 1}] Audio saved.`);
-                 }
-              }
-              idx++;
-           }
         }
       }
 
