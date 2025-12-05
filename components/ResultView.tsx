@@ -32,7 +32,7 @@ interface ResultViewProps {
 const isValid = (text?: string | null) => {
   if (!text) return false;
   const t = text.trim().toLowerCase();
-  return t !== 'null' && t !== 'undefined' && t !== 'n/a' && t !== 'none' && t !== '';
+  return t !== 'null' && t !== 'undefined' && t !== 'n/a' && t !== 'none' && t !== '' && t !== 'n.v.t.' && t !== 'nvt' && t !== '-';
 };
 
 const cleanText = (text: string) => text.toLowerCase().replace(/[^\w\s]|_/g, "").replace(/\s+/g, " ").trim();

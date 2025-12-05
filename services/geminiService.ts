@@ -267,10 +267,12 @@ export const generateDefinition = async (
       Task: Analyze the term "${term}" for a Dutch learner.
       
       Constraints:
-      1. Target Language: ${targetLang}. Source Language: ${sourceLang}.
+      1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
       2. Definition: Max 15 words. Concise.
       3. Usage Note: Max 2 sentences. Fun/Casual tone.
       4. Examples: Exactly 2 examples.
+         - 'target' field: Dutch sentence.
+         - 'source' field: Translation in ${sourceLang}.
       5. Synonyms/Antonyms: Max 5 items each.
       6. OUTPUT: Pure JSON.
       
@@ -302,8 +304,8 @@ export const generateDefinition = async (
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  target: { type: Type.STRING },
-                  source: { type: Type.STRING },
+                  target: { type: Type.STRING, description: "Sentence in Dutch" },
+                  source: { type: Type.STRING, description: `Translation in ${sourceLang}` },
                 }
               }
             },
