@@ -223,7 +223,7 @@ export const generateDefinitionClaude = async (
      throw new Error("Missing Claude API Key");
   }
 
-  // UPDATED PROMPT: Rigorous Dutch Dictionary (User Requested)
+  // UPDATED PROMPT: Rigorous Dutch Dictionary with Dynamic Headers
   const prompt = `
       你是严谨的荷兰语词典编纂助手。
       任务：分析单词 "${term}"，目标用户母语为 ${sourceLang}。
@@ -253,20 +253,21 @@ export const generateDefinitionClaude = async (
           - adjectiveForms: 形容词的比较级别和最高级
           - synonyms: 【同义词】(荷兰语)
           - antonyms: 【反义词】(荷兰语)
-      4. usageNote: 包含以下三个部分，使用特定标题格式 (Rich Text String):
+      4. usageNote: 包含以下三个部分，使用特定标题格式 (Rich Text String)。
+          ⚠️ 重要：以下标题和标签必须翻译成 ${sourceLang} (Translate headers/labels to ${sourceLang})：
           
-          【小贴士】
+          【(Translate "Tips" to ${sourceLang})】
           (60词左右，用${sourceLang}写，介绍文化背景/使用注意/有趣知识)
 
-          【常用搭配/常见结构】
+          【(Translate "Common Collocations" to ${sourceLang})】
           (荷兰语 + ${sourceLang}翻译)
 
-          【固定表达/习语】
+          【(Translate "Idioms" to ${sourceLang})】
           (格式如下，必须包含 "${term}"，验证后输出。如无则写"无")
           - [习语荷兰语]
-            意思：[仅真实意思，不含直译]
-            例句：[荷兰语例句]
-            翻译：[${sourceLang}翻译]
+            (Translate "Meaning" to ${sourceLang})：[仅真实意思，不含直译]
+            (Translate "Example" to ${sourceLang})：[荷兰语例句]
+            (Translate "Translation" to ${sourceLang})：[${sourceLang}翻译]
 
       习语输出严格要求：
       ✅ 必须在搜索结果中找到
@@ -407,7 +408,7 @@ export const generateDefinition = async (
 
   // 3. GEMINI GENERATION
   try {
-    // UPDATED PROMPT: Rigorous Dutch Dictionary (User Requested) - Same as Claude
+    // UPDATED PROMPT: Rigorous Dutch Dictionary with Dynamic Headers (Same as Claude)
     const prompt = `
       你是严谨的荷兰语词典编纂助手。
       任务：分析单词 "${term}"，目标用户母语为 ${sourceLang}。
@@ -437,20 +438,21 @@ export const generateDefinition = async (
           - adjectiveForms: 形容词的比较级别和最高级
           - synonyms: 【同义词】(荷兰语)
           - antonyms: 【反义词】(荷兰语)
-      4. usageNote: 包含以下三个部分，使用特定标题格式 (Rich Text String):
+      4. usageNote: 包含以下三个部分，使用特定标题格式 (Rich Text String)。
+          ⚠️ 重要：以下标题和标签必须翻译成 ${sourceLang} (Translate headers/labels to ${sourceLang})：
           
-          【小贴士】
+          【(Translate "Tips" to ${sourceLang})】
           (60词左右，用${sourceLang}写，介绍文化背景/使用注意/有趣知识)
 
-          【常用搭配/常见结构】
+          【(Translate "Common Collocations" to ${sourceLang})】
           (荷兰语 + ${sourceLang}翻译)
 
-          【固定表达/习语】
+          【(Translate "Idioms" to ${sourceLang})】
           (格式如下，必须包含 "${term}"，验证后输出。如无则写"无")
           - [习语荷兰语]
-            意思：[仅真实意思，不含直译]
-            例句：[荷兰语例句]
-            翻译：[${sourceLang}翻译]
+            (Translate "Meaning" to ${sourceLang})：[仅真实意思，不含直译]
+            (Translate "Example" to ${sourceLang})：[荷兰语例句]
+            (Translate "Translation" to ${sourceLang})：[${sourceLang}翻译]
 
       习语输出严格要求：
       ✅ 必须在搜索结果中找到
