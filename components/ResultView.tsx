@@ -383,38 +383,41 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
           <p className="text-xl font-medium text-pop-dark leading-relaxed">{entry.definition}</p>
         </div>
 
-        <div className="space-y-3 mb-6">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{labels.examples}</h3>
-          {entry.examples.map((ex, idx) => (
-            <div key={idx} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-              <div className="flex justify-between items-start gap-2 mb-2">
-                <p className="text-pop-purple font-semibold text-lg leading-tight">{ex.target}</p>
-                <button 
-                  // Pass example audioUrl here
-                  onClick={() => handleAudio(ex.target, `ex-${idx}`, ex.audioUrl)} 
-                  className={`w-8 h-8 flex items-center justify-center rounded-full shrink-0 ml-2 transition-transform hover:scale-110
-                    ${ex.audioUrl 
-                       ? 'bg-pop-teal text-white shadow-sm' 
-                       : 'bg-white text-pop-purple border border-pop-purple'
-                    }
-                  `}
-                  aria-label="Listen to example"
-                >
-                  {loadingAudio === `ex-${idx}` ? (
-                    <i className="fa-solid fa-spinner fa-spin text-xs"></i>
-                  ) : (
-                    ex.audioUrl 
-                      ? <i className="fa-solid fa-volume-high text-xs"></i>
-                      : <i className="fa-solid fa-wifi text-[10px]"></i>
-                  )}
-                </button>
+        {/* SAFEGUARD: Only render examples if they exist and are an array */}
+        {entry.examples && Array.isArray(entry.examples) && entry.examples.length > 0 && (
+          <div className="space-y-3 mb-6">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">{labels.examples}</h3>
+            {entry.examples.map((ex, idx) => (
+              <div key={idx} className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                <div className="flex justify-between items-start gap-2 mb-2">
+                  <p className="text-pop-purple font-semibold text-lg leading-tight">{ex.target}</p>
+                  <button 
+                    // Pass example audioUrl here
+                    onClick={() => handleAudio(ex.target, `ex-${idx}`, ex.audioUrl)} 
+                    className={`w-8 h-8 flex items-center justify-center rounded-full shrink-0 ml-2 transition-transform hover:scale-110
+                      ${ex.audioUrl 
+                         ? 'bg-pop-teal text-white shadow-sm' 
+                         : 'bg-white text-pop-purple border border-pop-purple'
+                      }
+                    `}
+                    aria-label="Listen to example"
+                  >
+                    {loadingAudio === `ex-${idx}` ? (
+                      <i className="fa-solid fa-spinner fa-spin text-xs"></i>
+                    ) : (
+                      ex.audioUrl 
+                        ? <i className="fa-solid fa-volume-high text-xs"></i>
+                        : <i className="fa-solid fa-wifi text-[10px]"></i>
+                    )}
+                  </button>
+                </div>
+                {ex.source && ex.source.trim() !== '' && cleanText(ex.source) !== cleanText(ex.target) && (
+                   <p className="text-gray-600 text-sm italic">{ex.source}</p>
+                )}
               </div>
-              {ex.source && ex.source.trim() !== '' && cleanText(ex.source) !== cleanText(ex.target) && (
-                 <p className="text-gray-600 text-sm italic">{ex.source}</p>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         <div className="bg-pop-teal/10 p-5 rounded-2xl border border-pop-teal/20">
           <div className="flex items-center mb-2">

@@ -322,10 +322,16 @@ export const generateDefinitionClaude = async (
     
     try {
        const json = JSON.parse(cleanJson);
-       if (json.examples && Array.isArray(json.examples)) {
+       
+       // CRITICAL FIX: Ensure examples array exists
+       if (!json.examples || !Array.isArray(json.examples)) {
+          json.examples = [];
+       }
+
+       if (json.examples.length > 0) {
          json.examples = json.examples.map((ex: any) => ({
-           target: ex.dutch || ex.target,
-           source: ex.translation || ex.source
+           target: ex.dutch || ex.target || "",
+           source: ex.translation || ex.source || ""
          }));
        }
        return json;
@@ -518,10 +524,15 @@ export const generateDefinition = async (
 
     const json = JSON.parse(text);
 
-    if (json.examples && Array.isArray(json.examples)) {
+    // CRITICAL FIX: Ensure examples array exists
+    if (!json.examples || !Array.isArray(json.examples)) {
+      json.examples = [];
+    }
+
+    if (json.examples.length > 0) {
       json.examples = json.examples.map((ex: any) => ({
-        target: ex.dutch || ex.target,
-        source: ex.translation || ex.source
+        target: ex.dutch || ex.target || "",
+        source: ex.translation || ex.source || ""
       }));
     }
 
