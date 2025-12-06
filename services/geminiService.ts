@@ -215,8 +215,8 @@ export const generateDefinitionClaude = async (
   targetLang: string,
   claudeKey: string
 ): Promise<any> => {
-  // Using 'claude-3-5-sonnet-latest' alias to avoid 404s with dated versions
-  const MODEL_NAME = "claude-3-5-sonnet-latest";
+  // Using user-specified model ID
+  const MODEL_NAME = "claude-sonnet-4-5-20250929";
   console.log(`Using text model: ${MODEL_NAME}`);
   
   if (!claudeKey) {
