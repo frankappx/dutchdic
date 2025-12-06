@@ -187,30 +187,26 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
             const lines = trimmed.split('\n');
             // Remove delimiter from header text
             const headerText = lines[0].replace(/###|【|】/g, '').trim();
-            const contentLines = lines.slice(1).filter(l => l.trim().length > 0);
+            // Reconstruct the body to split by double newlines for block support
+            const bodyText = lines.slice(1).join('\n').trim();
+            const blocks = bodyText.split(/\n\s*\n/);
             
             return (
               <div key={index} className="pt-2 border-t border-pop-teal/10">
                 <h4 className="font-bold text-pop-teal text-xs uppercase tracking-wider mb-3">
                   {headerText}
                 </h4>
-                <div className="space-y-2">
-                   {contentLines.map((line, lineIdx) => {
-                      // If old format uses bullets, keep logic, else just render line
-                      const isListItem = line.trim().startsWith('-') || line.trim().startsWith('*');
-                      const cleanLine = line.replace(/^[-*]\s*/, '').trim();
-                      
-                      if (isListItem) {
-                        return (
-                          <div key={lineIdx} className="flex gap-2 items-start pl-1">
-                             <span className="text-pop-teal mt-1.5 text-[6px] shrink-0"><i className="fa-solid fa-circle"></i></span>
-                             <p className="leading-relaxed">{formatText(cleanLine)}</p>
-                          </div>
-                        );
-                      }
-                      
-                      // Render plain lines (new format)
-                      return <p key={lineIdx} className="leading-relaxed pl-1 whitespace-pre-wrap">{formatText(line)}</p>;
+                {/* Render Blocks with spacing between them */}
+                <div className="space-y-4">
+                   {blocks.map((block, bIdx) => {
+                      if (!block.trim()) return null;
+                      return (
+                        <div key={bIdx} className="leading-snug">
+                           {block.split('\n').map((line, lIdx) => (
+                              line.trim() && <div key={lIdx} className="text-pop-dark/90">{formatText(line.trim())}</div>
+                           ))}
+                        </div>
+                      );
                    })}
                 </div>
               </div>

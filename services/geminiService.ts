@@ -250,14 +250,15 @@ export const generateDefinitionClaude = async (
            CRITICAL TRANSLATION RULES FOR IDIOMS:
            1. Translate the ACTUAL MEANING (semantics), not literal.
            2. If ${sourceLang} has an equivalent proverb, YOU MUST USE THAT EQUIVALENT.
+           3. The Dutch Idiom/Proverb MUST be bolded using markdown (**text**).
            
            FORMAT PER IDIOM (Block of 4 lines):
-           [Dutch Idiom]
+           **[Dutch Idiom]**
            ${sourceLang}: [Meaning/Equivalent]
            [Word for 'Example' in ${sourceLang}]: [Dutch Sentence] (NO QUOTES)
            [Word for 'Translation' in ${sourceLang}]: [Translation] (NO QUOTES)
 
-           (Ensure there is an empty line between idioms).
+           (Ensure there is an empty line between distinct idioms).
 
       4. Examples: Exactly 2 examples.
          - 'dutch' field: MUST be the Dutch sentence.
@@ -437,14 +438,15 @@ export const generateDefinition = async (
            CRITICAL TRANSLATION RULES FOR IDIOMS:
            1. Translate the ACTUAL MEANING (semantics), not literal.
            2. If ${sourceLang} has an equivalent proverb, YOU MUST USE THAT EQUIVALENT.
+           3. The Dutch Idiom/Proverb MUST be bolded using markdown (**text**).
            
            FORMAT PER IDIOM (Block of 4 lines):
-           [Dutch Idiom]
+           **[Dutch Idiom]**
            ${sourceLang}: [Meaning/Equivalent]
            [Word for 'Example' in ${sourceLang}]: [Dutch Sentence] (NO QUOTES)
            [Word for 'Translation' in ${sourceLang}]: [Translation] (NO QUOTES)
 
-           (Ensure there is an empty line between idioms).
+           (Ensure there is an empty line between distinct idioms).
          
       4. Examples: Exactly 2 examples.
          - 'dutch' field: MUST be the Dutch sentence.
