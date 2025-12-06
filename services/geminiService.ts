@@ -239,16 +239,20 @@ export const generateDefinitionClaude = async (
          - Part 3: strictly double newline, then header "### Idioms & Proverbs" (Translate header to ${sourceLang}).
            List ALL relevant, famous, and authentic fixed expressions/idioms/proverbs containing the word.
            DO NOT limit the length. Coverage must be COMPREHENSIVE.
-           FORMAT: Bullet point "- Dutch Idiom: Meaning (${sourceLang})".
            
-           CRITICAL RULES FOR IDIOMS:
-           1. VERIFY authenticity. Only use existing Dutch idioms found in standard lists (e.g., Van Dale, Wikipedia).
-           2. EXAMPLE QUALITY:
-              - If term is "vissen", MUST include "achter het net vissen" and "in troebel water vissen".
-              - If term is "lelijk", MUST include "al draagt een aap een gouden ring, het is en blijft een lelijk ding".
-           3. DO NOT translate English idioms literally into Dutch if they don't exist.
-           4. If an equivalent idiom exists in ${sourceLang}, USE IT for the translation.
-           5. Provide a Dutch example sentence for the idiom.
+           CRITICAL TRANSLATION RULES FOR IDIOMS:
+           1. DO NOT translate the Dutch idiom literally word-for-word.
+           2. Translate the ACTUAL MEANING (semantics).
+           3. CRITICAL: If ${sourceLang} has an equivalent proverb/idiom, YOU MUST USE THAT EQUIVALENT.
+              (e.g. If Dutch is "Als de kat van huis is...", and ${sourceLang} is Chinese, output "山中无老虎，猴子称大王").
+           4. Provide a brief explanation of meaning if necessary.
+           5. Provide a Dutch example sentence using the idiom and its translation.
+
+           FORMAT: 
+           - **Dutch Idiom**: [Equivalent Idiom in ${sourceLang} OR Meaning]
+             - Meaning: [Brief explanation in ${sourceLang}]
+             - Example: "[Dutch Sentence]"
+             - Translation: "[Translation of sentence in ${sourceLang}]"
          
          FORMATTING RULES:
          - Use standard sentence case (e.g., "De kat uit de boom kijken").
@@ -422,14 +426,20 @@ export const generateDefinition = async (
          - Part 3: strictly double newline, then header "### Idioms & Proverbs" (Translate header to ${sourceLang}).
            List ALL relevant, famous, and authentic fixed expressions/idioms/proverbs containing the word.
            DO NOT limit the length. Coverage must be COMPREHENSIVE.
-           FORMAT: Bullet point "- Dutch Idiom: Meaning (${sourceLang})".
            
-           CRITICAL RULES FOR IDIOMS:
-           1. VERIFY authenticity. Only use existing Dutch idioms found in standard lists.
-           2. If term is "vissen", MUST include "achter het net vissen".
-           3. DO NOT translate English idioms literally into Dutch.
-           4. If an equivalent idiom exists in ${sourceLang}, USE IT for the translation.
-           5. Provide a Dutch example sentence for the idiom.
+           CRITICAL TRANSLATION RULES FOR IDIOMS:
+           1. DO NOT translate the Dutch idiom literally word-for-word.
+           2. Translate the ACTUAL MEANING (semantics).
+           3. CRITICAL: If ${sourceLang} has an equivalent proverb/idiom, YOU MUST USE THAT EQUIVALENT.
+              (e.g. If Dutch is "Als de kat van huis is...", and ${sourceLang} is Chinese, output "山中无老虎，猴子称大王").
+           4. Provide a brief explanation of meaning if necessary.
+           5. Provide a Dutch example sentence using the idiom and its translation.
+
+           FORMAT: 
+           - **Dutch Idiom**: [Equivalent Idiom in ${sourceLang} OR Meaning]
+             - Meaning: [Brief explanation in ${sourceLang}]
+             - Example: "[Dutch Sentence]"
+             - Translation: "[Translation of sentence in ${sourceLang}]"
          
          FORMATTING RULES:
          - Use standard sentence case (e.g., "De kat uit de boom kijken").
