@@ -166,14 +166,16 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
         });
     };
 
-    // If no markdown headers detected, return simple paragraph (backward compatibility)
-    if (!note.includes('###')) {
+    // New format uses "【" as delimiters for headers
+    // Fallback for backward compatibility with "###"
+    const delimiter = note.includes('【') ? '【' : (note.includes('###') ? '###' : null);
+    
+    if (!delimiter) {
       return <p className="text-pop-dark/80 text-sm leading-relaxed whitespace-pre-wrap">{formatText(note)}</p>;
     }
     
-    // Split by headers (###)
-    // We use a lookahead regex to keep the delimiter
-    const sections = note.split(/(?=###)/);
+    // Split by lookahead for delimiter
+    const sections = note.split(new RegExp(`(?=${delimiter})`));
     
     return (
       <div className="text-sm text-pop-dark/80 space-y-5">
@@ -181,18 +183,20 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
           const trimmed = section.trim();
           if (!trimmed) return null;
 
-          if (trimmed.startsWith('###')) {
+          if (trimmed.startsWith(delimiter)) {
             const lines = trimmed.split('\n');
-            const header = lines[0].replace(/###/g, '').trim();
+            // Remove delimiter from header text
+            const headerText = lines[0].replace(/###|【|】/g, '').trim();
             const contentLines = lines.slice(1).filter(l => l.trim().length > 0);
             
             return (
               <div key={index} className="pt-2 border-t border-pop-teal/10">
                 <h4 className="font-bold text-pop-teal text-xs uppercase tracking-wider mb-3">
-                  {header}
+                  {headerText}
                 </h4>
                 <div className="space-y-2">
                    {contentLines.map((line, lineIdx) => {
+                      // If old format uses bullets, keep logic, else just render line
                       const isListItem = line.trim().startsWith('-') || line.trim().startsWith('*');
                       const cleanLine = line.replace(/^[-*]\s*/, '').trim();
                       
@@ -205,7 +209,8 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                         );
                       }
                       
-                      return <p key={lineIdx} className="leading-relaxed pl-1">{formatText(line)}</p>;
+                      // Render plain lines (new format)
+                      return <p key={lineIdx} className="leading-relaxed pl-1 whitespace-pre-wrap">{formatText(line)}</p>;
                    })}
                 </div>
               </div>

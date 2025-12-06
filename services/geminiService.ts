@@ -230,35 +230,35 @@ export const generateDefinitionClaude = async (
       Constraints:
       1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
       2. Definition: Max 15 words. Concise.
-      3. Usage Note: Use this structure EXACTLY:
+      3. Usage Note: Use this structure EXACTLY. 
+         STRICT FORMATTING RULES:
+         - NO bullet points (dots, hyphens) at the start of lines.
+         - NO quotation marks around sentences.
+         - Use specific bracket headers: 【...】
+
+         Structure:
          - Part 1: Cultural/usage tip in ${sourceLang}. Around 60 words.
-         - Part 2: strictly double newline, then header "### Common Collocations" (Translate header to ${sourceLang}).
-           List ALL common collocations. DO NOT limit the count.
-           FORMAT: Bullet point "- Dutch phrase: Translation". 
-           Each collocation MUST be on a new line. 
-         - Part 3: strictly double newline, then header "### Idioms & Proverbs" (Translate header to ${sourceLang}).
-           List ALL relevant, famous, and authentic fixed expressions/idioms/proverbs containing the word.
-           DO NOT limit the length. Coverage must be COMPREHENSIVE.
+         
+         - Part 2: strictly double newline, then header "【Common Collocations / Structure】" (Translate header to ${sourceLang}).
+           List ALL common collocations.
+           FORMAT: Dutch phrase [space] Translation
+           (Do not use bullets. Just new lines.)
+
+         - Part 3: strictly double newline, then header "【Idioms & Proverbs】" (Translate header to ${sourceLang}).
+           List ALL relevant, famous, and authentic fixed expressions/idioms/proverbs.
            
            CRITICAL TRANSLATION RULES FOR IDIOMS:
-           1. DO NOT translate the Dutch idiom literally word-for-word.
-           2. Translate the ACTUAL MEANING (semantics).
-           3. CRITICAL: If ${sourceLang} has an equivalent proverb/idiom, YOU MUST USE THAT EQUIVALENT.
-              (e.g. If Dutch is "Als de kat van huis is...", and ${sourceLang} is Chinese, output "山中无老虎，猴子称大王").
-           4. Provide a brief explanation of meaning if necessary.
-           5. Provide a Dutch example sentence using the idiom and its translation.
+           1. Translate the ACTUAL MEANING (semantics), not literal.
+           2. If ${sourceLang} has an equivalent proverb, YOU MUST USE THAT EQUIVALENT.
+           
+           FORMAT PER IDIOM (Block of 4 lines):
+           [Dutch Idiom]
+           ${sourceLang}: [Meaning/Equivalent]
+           [Word for 'Example' in ${sourceLang}]: [Dutch Sentence] (NO QUOTES)
+           [Word for 'Translation' in ${sourceLang}]: [Translation] (NO QUOTES)
 
-           FORMAT: 
-           - **Dutch Idiom**: [Equivalent Idiom in ${sourceLang} OR Meaning]
-             - Meaning: [Brief explanation in ${sourceLang}]
-             - Example: "[Dutch Sentence]"
-             - Translation: "[Translation of sentence in ${sourceLang}]"
-         
-         FORMATTING RULES:
-         - Use standard sentence case (e.g., "De kat uit de boom kijken").
-         - Do NOT use ALL CAPS.
-         - Use bold markdown (**text**) for the Dutch phrase.
-         
+           (Ensure there is an empty line between idioms).
+
       4. Examples: Exactly 2 examples.
          - 'dutch' field: MUST be the Dutch sentence.
          - 'translation' field: MUST be the translation in ${sourceLang}.
@@ -417,34 +417,34 @@ export const generateDefinition = async (
       Constraints:
       1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
       2. Definition: Max 15 words. Concise.
-      3. Usage Note: Use this structure EXACTLY:
+      3. Usage Note: Use this structure EXACTLY. 
+         STRICT FORMATTING RULES:
+         - NO bullet points (dots, hyphens) at the start of lines.
+         - NO quotation marks around sentences.
+         - Use specific bracket headers: 【...】
+
+         Structure:
          - Part 1: Cultural/usage tip in ${sourceLang}. Around 60 words.
-         - Part 2: strictly double newline, then header "### Common Collocations" (Translate header to ${sourceLang}).
-           List ALL common collocations. DO NOT limit the count.
-           FORMAT: Bullet point "- Dutch phrase: Translation". 
-           Each collocation MUST be on a new line. 
-         - Part 3: strictly double newline, then header "### Idioms & Proverbs" (Translate header to ${sourceLang}).
-           List ALL relevant, famous, and authentic fixed expressions/idioms/proverbs containing the word.
-           DO NOT limit the length. Coverage must be COMPREHENSIVE.
+         
+         - Part 2: strictly double newline, then header "【Common Collocations / Structure】" (Translate header to ${sourceLang}).
+           List ALL common collocations.
+           FORMAT: Dutch phrase [space] Translation
+           (Do not use bullets. Just new lines.)
+
+         - Part 3: strictly double newline, then header "【Idioms & Proverbs】" (Translate header to ${sourceLang}).
+           List ALL relevant, famous, and authentic fixed expressions/idioms/proverbs.
            
            CRITICAL TRANSLATION RULES FOR IDIOMS:
-           1. DO NOT translate the Dutch idiom literally word-for-word.
-           2. Translate the ACTUAL MEANING (semantics).
-           3. CRITICAL: If ${sourceLang} has an equivalent proverb/idiom, YOU MUST USE THAT EQUIVALENT.
-              (e.g. If Dutch is "Als de kat van huis is...", and ${sourceLang} is Chinese, output "山中无老虎，猴子称大王").
-           4. Provide a brief explanation of meaning if necessary.
-           5. Provide a Dutch example sentence using the idiom and its translation.
+           1. Translate the ACTUAL MEANING (semantics), not literal.
+           2. If ${sourceLang} has an equivalent proverb, YOU MUST USE THAT EQUIVALENT.
+           
+           FORMAT PER IDIOM (Block of 4 lines):
+           [Dutch Idiom]
+           ${sourceLang}: [Meaning/Equivalent]
+           [Word for 'Example' in ${sourceLang}]: [Dutch Sentence] (NO QUOTES)
+           [Word for 'Translation' in ${sourceLang}]: [Translation] (NO QUOTES)
 
-           FORMAT: 
-           - **Dutch Idiom**: [Equivalent Idiom in ${sourceLang} OR Meaning]
-             - Meaning: [Brief explanation in ${sourceLang}]
-             - Example: "[Dutch Sentence]"
-             - Translation: "[Translation of sentence in ${sourceLang}]"
-         
-         FORMATTING RULES:
-         - Use standard sentence case (e.g., "De kat uit de boom kijken").
-         - Do NOT use ALL CAPS.
-         - Use bold markdown (**text**) for the Dutch phrase.
+           (Ensure there is an empty line between idioms).
          
       4. Examples: Exactly 2 examples.
          - 'dutch' field: MUST be the Dutch sentence.
