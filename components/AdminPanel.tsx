@@ -35,6 +35,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [geminiKey, setGeminiKey] = useState('');
   const [elevenLabsKey, setElevenLabsKey] = useState('');
+  const [claudeKey, setClaudeKey] = useState(''); // NEW
   
   // CHANGED: Three separate Voice IDs with requested defaults
   // Updated defaults for Word and Ex2 to '7qdUFMklKPaaAVMsBTBt'
@@ -56,6 +57,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     audioEx1: true,
     audioEx2: true
   });
+  
+  // NEW: Provider Selection
+  const [textProvider, setTextProvider] = useState<'gemini' | 'claude'>('claude');
+  
   const [selectedStyle, setSelectedStyle] = useState<ImageStyle>('ghibli');
   // Changed default to true as per user request
   const [overwriteAudio, setOverwriteAudio] = useState(true);
@@ -67,9 +72,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     const envUrl = getEnv('VITE_SUPABASE_URL');
     const envGemini = getEnv('VITE_GEMINI_API_KEY');
     const envEleven = getEnv('VITE_ELEVENLABS_API_KEY');
+    const envClaude = getEnv('VITE_CLAUDE_API_KEY');
     
     if (envUrl) setSupabaseUrl(envUrl);
     if (envGemini) setGeminiKey(envGemini);
+    if (envClaude) setClaudeKey(envClaude);
     
     // Use env var if available, otherwise use the hardcoded key provided by user
     if (envEleven) {
@@ -77,6 +84,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     } else {
       setElevenLabsKey('8907edb0434320a0def2afad8da48e900ec0da915a613e1baba0bc998197535f');
     }
+    
+    // Fallback logic REMOVED: User must provide key or set env var to prevent github secrets block
   }, []);
 
   useEffect(() => {
@@ -127,6 +136,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
        alert("ElevenLabs Key is required for audio tasks.");
        return;
     }
+    
+    if (tasks.text && textProvider === 'claude' && !claudeKey) {
+       alert("Claude Key is required when provider is set to Claude.");
+       return;
+    }
 
     setIsProcessing(true);
     setLogs([`🚀 Started batch process for ${words.length} words...`]);
@@ -138,10 +152,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
     const config: BatchConfig = {
       tasks,
       imageStyle: selectedStyle,
-      overwriteAudio
+      overwriteAudio,
+      textProvider
     };
 
-    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, voiceIds, supabaseUrl, targetLang, config, addLog);
+    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, claudeKey, voiceIds, supabaseUrl, targetLang, config, addLog);
     
     setIsProcessing(false);
   };
@@ -187,12 +202,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
                    <label className="text-xs font-bold text-gray-400">Supabase URL</label>
                    <input value={supabaseUrl} onChange={e => setSupabaseUrl(e.target.value)} className="w-full bg-gray-50 border p-2 rounded text-sm font-mono" />
                  </div>
-                 <div>
-                   <label className="text-xs font-bold text-gray-400">Gemini API Key (Text & Images)</label>
-                   <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} className="w-full bg-gray-50 border p-2 rounded text-sm font-mono" />
+                 <div className="flex gap-2">
+                   <div className="w-1/2">
+                      <label className="text-xs font-bold text-gray-400">Gemini Key (Image)</label>
+                      <input type="password" value={geminiKey} onChange={e => setGeminiKey(e.target.value)} className="w-full bg-gray-50 border p-2 rounded text-sm font-mono" />
+                   </div>
+                   <div className="w-1/2">
+                      <label className="text-xs font-bold text-gray-400">Claude Key (Text)</label>
+                      <input type="password" value={claudeKey} onChange={e => setClaudeKey(e.target.value)} className="w-full bg-gray-50 border p-2 rounded text-sm font-mono" placeholder="sk-ant..." />
+                   </div>
                  </div>
                  <div>
-                   <label className="text-xs font-bold text-gray-400">ElevenLabs API Key (Audio)</label>
+                   <label className="text-xs font-bold text-gray-400">ElevenLabs Key (Audio)</label>
                    <input type="password" value={elevenLabsKey} onChange={e => setElevenLabsKey(e.target.value)} className="w-full bg-gray-50 border p-2 rounded text-sm font-mono" placeholder="sk_..." />
                  </div>
                  <div>
@@ -268,18 +289,46 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
               <div className="space-y-4 mb-6">
                 <label className="text-xs font-bold text-gray-400 block">Select Operations:</label>
                 
-                <label className="flex items-center p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
-                  <input 
-                    type="checkbox" 
-                    checked={tasks.text} 
-                    onChange={e => setTasks(p => ({...p, text: e.target.checked}))}
-                    className="w-5 h-5 text-pop-purple rounded focus:ring-pop-purple mr-3"
-                  />
-                  <div>
-                    <span className="font-bold text-gray-700 block">A. Text Content</span>
-                    <span className="text-xs text-gray-400">Definition, Grammar, Examples (Gemini 2.5 Flash)</span>
-                  </div>
-                </label>
+                <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <label className="flex items-center cursor-pointer mb-2">
+                      <input 
+                        type="checkbox" 
+                        checked={tasks.text} 
+                        onChange={e => setTasks(p => ({...p, text: e.target.checked}))}
+                        className="w-5 h-5 text-pop-purple rounded focus:ring-pop-purple mr-3"
+                      />
+                      <div>
+                        <span className="font-bold text-gray-700 block">A. Text Content</span>
+                        <span className="text-xs text-gray-400">Definitions, Usage Notes, Examples</span>
+                      </div>
+                    </label>
+                    {tasks.text && (
+                        <div className="ml-8 mt-2 flex gap-4 animate-fade-in">
+                           <label className="flex items-center cursor-pointer">
+                              <input 
+                                type="radio" 
+                                name="textProvider"
+                                value="gemini"
+                                checked={textProvider === 'gemini'}
+                                onChange={() => setTextProvider('gemini')}
+                                className="w-4 h-4 text-pop-purple mr-2"
+                              />
+                              <span className="text-xs font-bold text-gray-600">Gemini (Flash)</span>
+                           </label>
+                           <label className="flex items-center cursor-pointer">
+                              <input 
+                                type="radio" 
+                                name="textProvider"
+                                value="claude"
+                                checked={textProvider === 'claude'}
+                                onChange={() => setTextProvider('claude')}
+                                className="w-4 h-4 text-pop-purple mr-2"
+                              />
+                              <span className="text-xs font-bold text-gray-600">Claude (3.5 Sonnet)</span>
+                           </label>
+                        </div>
+                    )}
+                </div>
 
                 <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
                   <label className="flex items-center cursor-pointer mb-3">

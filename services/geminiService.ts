@@ -25,8 +25,9 @@ const getEnv = (key: string) => {
 };
 
 const apiKey = getEnv('VITE_GEMINI_API_KEY') || getEnv('API_KEY');
+const claudeKeyEnv = getEnv('VITE_CLAUDE_API_KEY');
 // Use env var or the provided hardcoded key as fallback
-const elevenLabsKey = getEnv('VITE_ELEVENLABS_API_KEY') || '8907edb0434320a0def2afad8da48e900ec0da915a613e1baba0bc998197535f';
+const elevenLabsKey = getEnv('VITE_ELEVENLABS_API_KEY');
 
 // Safe AI Init: Prevent crash if API key is missing during render
 let ai: GoogleGenAI;
@@ -154,13 +155,8 @@ export const playErrorSound = async () => {
 
 // --- IMAGE HELPERS ---
 
-/**
- * Adds a watermark to the bottom right of the image using HTML5 Canvas.
- * RESIZES to 960x540 (16:9 qHD) and returns JPEG (0.95) to ensure compatibility and small size.
- */
 const addWatermark = (base64Image: string): Promise<string> => {
   return new Promise((resolve) => {
-    // Prevent crash in non-browser environments
     if (typeof window === 'undefined') {
         resolve(base64Image);
         return;
@@ -170,7 +166,6 @@ const addWatermark = (base64Image: string): Promise<string> => {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      // OPTIMIZATION: Resize to 960x540 (16:9 Aspect Ratio) for desktop clarity
       const TARGET_WIDTH = 960;
       const TARGET_HEIGHT = 540;
       
@@ -179,10 +174,8 @@ const addWatermark = (base64Image: string): Promise<string> => {
       
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        // 1. Draw Original Image Scaled to 16:9
         ctx.drawImage(img, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
-        // 2. Configure Watermark Text
         const text = "@Parlolo";
         const fontSize = Math.max(16, Math.floor(TARGET_WIDTH * 0.035));
         const padding = Math.floor(fontSize * 0.8);
@@ -204,8 +197,6 @@ const addWatermark = (base64Image: string): Promise<string> => {
         ctx.fillText(text, x, y);
       }
       
-      // Return clean Base64 (strip prefix) in High Quality JPEG format
-      // JPEG 0.95 is sharp but much smaller than PNG at this resolution
       const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
       resolve(dataUrl.split(',')[1]);
     };
@@ -216,13 +207,130 @@ const addWatermark = (base64Image: string): Promise<string> => {
   });
 };
 
+// --- CLAUDE API ---
+
+export const generateDefinitionClaude = async (
+  term: string, 
+  sourceLang: string, 
+  targetLang: string,
+  claudeKey: string
+): Promise<any | null> => {
+  // Using stable Claude 3.5 Sonnet
+  console.log("Using text model: Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)");
+  
+  const prompt = `
+      You are a Strict Dictionary API & Cultural Expert.
+      Task: Analyze the term "${term}" for a Dutch learner.
+      
+      Constraints:
+      1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
+      2. Definition: Max 15 words. Concise.
+      3. Usage Note: Use this structure EXACTLY:
+         - Part 1: Cultural/usage tip in ${sourceLang}. Around 60 words.
+         - Part 2: strictly double newline, then header "### Common Collocations" (Translate header to ${sourceLang}).
+           List ALL common collocations. DO NOT limit the count.
+           FORMAT: Bullet point "- Dutch phrase: Translation". 
+           Each collocation MUST be on a new line. 
+         - Part 3: strictly double newline, then header "### Idioms & Proverbs" (Translate header to ${sourceLang}).
+           List ALL relevant, famous, and authentic fixed expressions/idioms/proverbs containing the word.
+           DO NOT limit the length. Coverage must be COMPREHENSIVE.
+           FORMAT: Bullet point "- Dutch Idiom: Meaning (${sourceLang})".
+           
+           CRITICAL RULES FOR IDIOMS:
+           1. VERIFY authenticity. Only use existing Dutch idioms found in standard lists (e.g., Van Dale, Wikipedia).
+           2. EXAMPLE QUALITY:
+              - If term is "vissen", MUST include "achter het net vissen" and "in troebel water vissen".
+              - If term is "lelijk", MUST include "al draagt een aap een gouden ring, het is en blijft een lelijk ding".
+           3. DO NOT translate English idioms literally into Dutch if they don't exist.
+           4. If an equivalent idiom exists in ${sourceLang}, USE IT for the translation.
+           5. Provide a Dutch example sentence for the idiom.
+         
+         FORMATTING RULES:
+         - Use standard sentence case (e.g., "De kat uit de boom kijken").
+         - Do NOT use ALL CAPS.
+         - Use bold markdown (**text**) for the Dutch phrase.
+         
+      4. Examples: Exactly 2 examples.
+         - 'dutch' field: MUST be the Dutch sentence.
+         - 'translation' field: MUST be the translation in ${sourceLang}.
+      5. Synonyms/Antonyms: Max 5 items each.
+      
+      VALIDATION:
+      - If "${term}" is NOT a valid Dutch word, return JSON with 'definition': "NOT_DUTCH".
+      
+      OUTPUT: Return ONLY a valid JSON object with the following structure:
+      {
+        "definition": "string",
+        "partOfSpeech": "string (Dutch abbrev)",
+        "grammar_data": {
+           "plural": "string",
+           "article": "de/het",
+           "verbForms": "string",
+           "adjectiveForms": "string",
+           "synonyms": ["string"],
+           "antonyms": ["string"]
+        },
+        "usageNote": "string (the structured note)",
+        "examples": [
+          {"dutch": "string", "translation": "string"}
+        ]
+      }
+    `;
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": claudeKey,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+        // CORRECT HEADER for browser usage
+        "anthropic-dangerous-direct-browser-access": "true" 
+      },
+      body: JSON.stringify({
+        model: "claude-3-5-sonnet-20240620", 
+        max_tokens: 8192,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+
+    if (!response.ok) {
+       const err = await response.json();
+       console.error("Claude API Error:", err);
+       throw new Error(`Claude API Error: ${err.error?.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+    const textContent = data.content[0].text;
+    
+    // Clean potential markdown code blocks
+    const cleanJson = textContent.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
+    
+    const json = JSON.parse(cleanJson);
+    
+    if (json.examples && Array.isArray(json.examples)) {
+      json.examples = json.examples.map((ex: any) => ({
+        target: ex.dutch || ex.target,
+        source: ex.translation || ex.source
+      }));
+    }
+    
+    return json;
+
+  } catch (e: any) {
+    console.error("Claude Generation Failed:", e);
+    return null;
+  }
+};
+
 // --- API Methods ---
 
 export const generateDefinition = async (
   term: string, 
   sourceLang: string, 
   targetLang: string, 
-  preferredStyle: string = 'ghibli'
+  preferredStyle: string = 'ghibli',
+  provider: 'gemini' | 'claude' = 'claude' // Default to Claude if possible
 ): Promise<Omit<DictionaryEntry, 'id' | 'timestamp'> | null> => {
   
   // 1. SUPABASE CACHE LOOKUP
@@ -263,11 +371,24 @@ export const generateDefinition = async (
         };
       }
     } catch (dbError) {
-      console.warn("Supabase lookup failed, falling back to Gemini", dbError);
+      console.warn("Supabase lookup failed, falling back to AI", dbError);
     }
   }
 
-  // 2. GEMINI FALLBACK
+  // 2. CLAUDE OR GEMINI FALLBACK
+  
+  // Prefer Claude if Key exists and provider is claude or default
+  // REMOVED HARDCODED KEY: Must use Environment Variable
+  const activeClaudeKey = claudeKeyEnv;
+  
+  if (provider === 'claude' && activeClaudeKey) {
+     const result = await generateDefinitionClaude(term, sourceLang, targetLang, activeClaudeKey);
+     if (result) return result;
+     // If Claude fails, fall through to Gemini as backup
+     console.log("Claude failed, falling back to Gemini...");
+  }
+
+  // 3. GEMINI GENERATION
   try {
     const prompt = `
       Role: Strict Dictionary API & Cultural Expert.
@@ -288,11 +409,9 @@ export const generateDefinition = async (
            FORMAT: Bullet point "- Dutch Idiom: Meaning (${sourceLang})".
            
            CRITICAL RULES FOR IDIOMS:
-           1. VERIFY authenticity. Only use existing Dutch idioms found in standard lists (e.g., Van Dale, Wikipedia "Lijst van Nederlandse spreekwoorden").
-           2. EXAMPLE QUALITY:
-              - If term is "vissen", MUST include "achter het net vissen" and "in troebel water vissen".
-              - If term is "lelijk", MUST include "al draagt een aap een gouden ring, het is en blijft een lelijk ding".
-           3. DO NOT translate English idioms literally into Dutch if they don't exist (e.g., "He is off the fish" is fake. Do not use it.).
+           1. VERIFY authenticity. Only use existing Dutch idioms found in standard lists.
+           2. If term is "vissen", MUST include "achter het net vissen".
+           3. DO NOT translate English idioms literally into Dutch.
            4. If an equivalent idiom exists in ${sourceLang}, USE IT for the translation.
            5. Provide a Dutch example sentence for the idiom.
          
@@ -318,13 +437,13 @@ export const generateDefinition = async (
       3. If INVALID, return JSON with 'definition': "NOT_DUTCH".
     `;
 
-    console.log("Using text model: gemini-3-pro-preview");
+    // CHANGED: Reverted to gemini-2.5-flash for speed as requested
+    console.log("Using text model: gemini-2.5-flash");
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-2.5-flash",
       contents: prompt,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_BASE,
-        temperature: 0.1, // LOW TEMPERATURE FOR STABILITY
         responseMimeType: "application/json",
         maxOutputTokens: 8192,
         responseSchema: {

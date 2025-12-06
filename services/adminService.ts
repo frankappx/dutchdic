@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { ImageStyle } from '../types';
+import { generateDefinitionClaude, generateDefinition } from './geminiService';
 
 // Configuration for rate limiting
 const DELAY_BETWEEN_WORDS_MS = 1000; // Reduced from 3000ms as per user feedback
@@ -16,6 +17,7 @@ export interface BatchConfig {
   };
   imageStyle: ImageStyle;
   overwriteAudio: boolean;
+  textProvider: 'gemini' | 'claude';
 }
 
 export interface VoiceIdConfig {
@@ -167,6 +169,7 @@ export const processBatch = async (
   serviceRoleKey: string,
   geminiKey: string,
   elevenLabsKey: string,
+  claudeKey: string, // ADDED
   voiceIds: VoiceIdConfig,
   supabaseUrl: string,
   targetLangCode: string,
@@ -179,6 +182,7 @@ export const processBatch = async (
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
+  // Image Generation still uses Gemini
   const ai = new GoogleGenAI({ apiKey: geminiKey });
   const targetLangName = getLanguageName(targetLangCode);
   
@@ -188,7 +192,7 @@ export const processBatch = async (
   if (config.tasks.audioEx2) audioTasks.push("Ex2");
 
   onLog(`🌍 Output Language: ${targetLangName} (${targetLangCode})`);
-  onLog(`⚙️ Tasks: ${config.tasks.text ? '[Text] ' : ''}${config.tasks.image ? '[Image: '+config.imageStyle+'] ' : ''}${audioTasks.length > 0 ? '[Audio (ElevenLabs)]' : ''}`);
+  onLog(`⚙️ Tasks: ${config.tasks.text ? '[Text: '+config.textProvider.toUpperCase()+'] ' : ''}${config.tasks.image ? '[Image: '+config.imageStyle+'] ' : ''}${audioTasks.length > 0 ? '[Audio]' : ''}`);
 
   for (let i = 0; i < words.length; i++) {
     const term = words[i].trim();
@@ -204,103 +208,29 @@ export const processBatch = async (
     try {
       // --- PHASE A: TEXT CONTENT ---
       if (config.tasks.text) {
-        onLog(`📝 Generating Dictionary Data...`);
-        const prompt = `
-          Task: Create a Dictionary Entry for the Dutch word "${term}".
-          
-          Settings:
-          - Output Language (Definitions/Notes): ${targetLangName} (${targetLangCode})
-          - Target Word Language: Dutch (nl)
-          
-          JSON Structure Requirements:
-          1. "definition": Concise meaning (max 15 words) in ${targetLangName}.
-          2. "partOfSpeech": Dutch abbreviation (e.g., zn., ww., bn., bw.).
-          3. "grammar_data":
-             - "plural": Plural form (if noun).
-             - "article": "de" or "het" (if noun).
-             - "verbForms": "pres - past - pp" (if verb).
-             - "adjectiveForms": "base - comp - sup" (if adj).
-             - "synonyms": Array of strings (Dutch, max 3).
-             - "antonyms": Array of strings (Dutch, max 3).
-          4. "usageNote": Use this structure EXACTLY:
-             - Part 1: Cultural/usage tip in ${targetLangName}. Around 60 words. Fun and helpful.
-             - Part 2: strictly double newline, then header "### Common Collocations" (Translate header to ${targetLangName}).
-               List ALL common collocations. DO NOT limit the count.
-               FORMAT: Bullet point "- Dutch phrase: Translation". 
-               Each collocation MUST be on a new line. 
-             - Part 3: strictly double newline, then header "### Idioms & Proverbs" (Translate header to ${targetLangName}).
-               List ALL relevant, famous, and authentic fixed expressions/idioms/proverbs containing the word.
-               DO NOT limit the length. Coverage must be COMPREHENSIVE.
-               FORMAT: Bullet point "- Dutch Idiom: Meaning (${targetLangName})".
-               
-               CRITICAL RULES FOR IDIOMS:
-               1. VERIFY authenticity. Only use existing Dutch idioms found in standard lists (e.g., Van Dale, Wikipedia "Lijst van Nederlandse spreekwoorden").
-               2. EXAMPLE QUALITY:
-                  - If term is "vissen", MUST include "achter het net vissen" and "in troebel water vissen".
-                  - If term is "lelijk", MUST include "al draagt een aap een gouden ring, het is en blijft een lelijk ding".
-               3. DO NOT translate English idioms literally into Dutch if they don't exist (e.g., "He is off the fish" is fake. Do not use it.).
-               4. If an equivalent idiom exists in ${targetLangName}, USE IT for the translation.
-               5. Provide a Dutch example sentence for the idiom.
-             
-             FORMATTING RULES:
-             - Use standard sentence case (e.g., "De kat uit de boom kijken").
-             - Do NOT use ALL CAPS.
-             - Use bold markdown (**text**) for the Dutch phrase.
-             
-          5. "examples": Array of exactly 2 objects:
-             - "dutch": The Dutch sentence.
-             - "translation": The ${targetLangName} translation.
+        onLog(`📝 Generating Dictionary Data (${config.textProvider})...`);
+        
+        let generatedData = null;
 
-          STRICTLY OUTPUT VALID JSON.
-        `;
+        if (config.textProvider === 'claude') {
+           if (!claudeKey) throw new Error("Claude API Key is missing.");
+           generatedData = await generateDefinitionClaude(term, getLanguageName(targetLangCode), 'Dutch', claudeKey);
+        } else {
+           // Fallback to Gemini 2.5 Flash via generateDefinition helper (force provider 'gemini')
+           generatedData = await generateDefinition(term, getLanguageName(targetLangCode), 'Dutch', 'ghibli', 'gemini');
+        }
 
-        const textResp = await withTimeout<GenerateContentResponse>(
-            ai.models.generateContent({
-              model: "gemini-3-pro-preview",
-              contents: prompt,
-              config: {
-                temperature: 0.1, // LOW TEMPERATURE FOR STABILITY
-                responseMimeType: "application/json",
-                maxOutputTokens: 8192,
-                responseSchema: {
-                  type: Type.OBJECT,
-                  properties: {
-                    definition: { type: Type.STRING },
-                    partOfSpeech: { type: Type.STRING },
-                    grammar_data: { 
-                      type: Type.OBJECT, 
-                      properties: {
-                        plural: { type: Type.STRING },
-                        article: { type: Type.STRING },
-                        verbForms: { type: Type.STRING },
-                        adjectiveForms: { type: Type.STRING },
-                        synonyms: { type: Type.ARRAY, items: { type: Type.STRING } },
-                        antonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
-                      }
-                    },
-                    usageNote: { type: Type.STRING },
-                    examples: {
-                      type: Type.ARRAY,
-                      items: {
-                        type: Type.OBJECT,
-                        properties: {
-                          dutch: { type: Type.STRING },
-                          translation: { type: Type.STRING }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }),
-            20000 
-        );
+        if (!generatedData) {
+           throw new Error(`${config.textProvider} Generation Failed or Timed Out`);
+        }
+        
+        if (generatedData.definition === "NOT_DUTCH") {
+           throw new Error("Word detected as Not Dutch/Invalid");
+        }
 
-        let rawText = textResp.text || "{}";
-        try {
-          wordData = JSON.parse(rawText);
-        } catch (e) { throw new Error("JSON Parse failed"); }
+        wordData = generatedData;
 
+        // Save to DB
         const { data: wordRow, error: wordErr } = await supabase
           .from('words')
           .upsert({ 
@@ -391,7 +321,7 @@ export const processBatch = async (
          }
       }
 
-      // --- PHASE B: IMAGE GENERATION ---
+      // --- PHASE B: IMAGE GENERATION (ALWAYS GEMINI) ---
       if (config.tasks.image && wordId) {
         onLog(`🎨 Painting illustration (${config.imageStyle})...`);
         const contextSentence = wordData?.examples?.[0]?.dutch || term;
