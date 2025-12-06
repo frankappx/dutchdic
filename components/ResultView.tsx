@@ -187,8 +187,10 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
             const lines = trimmed.split('\n');
             // Remove delimiter from header text
             const headerText = lines[0].replace(/###|【|】/g, '').trim();
+            
             // Reconstruct the body to split by double newlines for block support
             const bodyText = lines.slice(1).join('\n').trim();
+            // Split into distinct blocks based on double newlines
             const blocks = bodyText.split(/\n\s*\n/);
             
             return (
@@ -196,14 +198,20 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                 <h4 className="font-bold text-pop-teal text-xs uppercase tracking-wider mb-3">
                   {headerText}
                 </h4>
-                {/* Render Blocks with spacing between them */}
-                <div className="space-y-4">
+                
+                {/* BLOCKS CONTAINER: Spaced out (e.g. between idioms) */}
+                <div className="space-y-6">
                    {blocks.map((block, bIdx) => {
                       if (!block.trim()) return null;
                       return (
-                        <div key={bIdx} className="leading-snug">
+                        // INDIVIDUAL BLOCK: Tight spacing (e.g. within one idiom)
+                        <div key={bIdx} className="space-y-1">
                            {block.split('\n').map((line, lIdx) => (
-                              line.trim() && <div key={lIdx} className="text-pop-dark/90">{formatText(line.trim())}</div>
+                              line.trim() && (
+                                <div key={lIdx} className="text-pop-dark/90 leading-tight">
+                                  {formatText(line.trim())}
+                                </div>
+                              )
                            ))}
                         </div>
                       );
