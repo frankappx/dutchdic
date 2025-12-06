@@ -227,15 +227,18 @@ export const generateDefinitionClaude = async (
       You are a Strict Dictionary API & Cultural Expert.
       Task: Analyze the term "${term}" for a Dutch learner.
       
+      CRITICAL INSTRUCTION: You MUST generate the "examples" array. Do not skip it.
+      
       Constraints:
       1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
-      2. Definition: Max 15 words. Concise.
       
-      3. Examples: Provide EXACTLY 2 distinct example sentences using "${term}".
-         - These MUST be returned in the 'examples' JSON array.
+      2. Examples (MANDATORY): Provide EXACTLY 2 distinct example sentences using "${term}".
+         - These MUST be included in the 'examples' JSON array.
          - 'dutch': Dutch sentence.
          - 'translation': Translation in ${sourceLang}.
 
+      3. Definition: Max 15 words. Concise.
+      
       4. Usage Note: Use this structure EXACTLY. 
          STRICT FORMATTING RULES:
          - NO bullet points (dots, hyphens) at the start of lines.
@@ -273,10 +276,15 @@ export const generateDefinitionClaude = async (
       VALIDATION:
       - If "${term}" is NOT a valid Dutch word, return JSON with 'definition': "NOT_DUTCH".
       
-      OUTPUT: Return ONLY a valid JSON object with the following structure:
+      OUTPUT: Return ONLY a valid JSON object with the following structure (order matters):
       {
         "definition": "string",
         "partOfSpeech": "string (Dutch abbrev)",
+        "examples": [
+          {"dutch": "string", "translation": "string"},
+          {"dutch": "string", "translation": "string"}
+        ],
+        "usageNote": "string (the structured note)",
         "grammar_data": {
            "plural": "string",
            "article": "de/het",
@@ -284,11 +292,7 @@ export const generateDefinitionClaude = async (
            "adjectiveForms": "string",
            "synonyms": ["string"],
            "antonyms": ["string"]
-        },
-        "examples": [
-          {"dutch": "string", "translation": "string"}
-        ],
-        "usageNote": "string (the structured note)"
+        }
       }
     `;
 
@@ -420,15 +424,18 @@ export const generateDefinition = async (
       Role: Strict Dictionary API & Cultural Expert.
       Task: Analyze the term "${term}" for a Dutch learner.
       
+      CRITICAL INSTRUCTION: You MUST generate the "examples" array. Do not skip it.
+
       Constraints:
       1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
-      2. Definition: Max 15 words. Concise.
       
-      3. Examples: Provide EXACTLY 2 distinct example sentences using "${term}".
+      2. Examples (MANDATORY): Provide EXACTLY 2 distinct example sentences using "${term}".
          - These MUST be returned in the 'examples' JSON array.
          - 'dutch': Dutch sentence.
          - 'translation': Translation in ${sourceLang}.
 
+      3. Definition: Max 15 words. Concise.
+      
       4. Usage Note: Use this structure EXACTLY. 
          STRICT FORMATTING RULES:
          - NO bullet points (dots, hyphens) at the start of lines.
@@ -488,6 +495,7 @@ export const generateDefinition = async (
           type: Type.OBJECT,
           properties: {
             definition: { type: Type.STRING },
+            // REORDERED: Examples moved up in schema to encourage priority
             examples: {
               type: Type.ARRAY,
               items: {
