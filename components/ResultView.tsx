@@ -284,12 +284,13 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
           </div>
         )}
 
+        {/* IMAGE DISPLAY: Centered, Rounded, No Crop */}
         {entry.imageUrl ? (
-          <div className="-mx-6 mb-6 overflow-hidden shadow-sm border-t border-b border-gray-100">
+          <div className="mb-6 flex justify-center w-full">
             <img 
                src={entry.imageUrl.startsWith('http') || entry.imageUrl.startsWith('data:') ? entry.imageUrl : `data:image/jpeg;base64,${entry.imageUrl}`} 
                alt={entry.term} 
-               className="w-full h-auto aspect-[2/1] object-cover transition-all" 
+               className="rounded-xl shadow-sm border border-gray-100 w-full h-auto object-contain max-h-[500px]" 
             />
           </div>
         ) : entry.imageError ? (
