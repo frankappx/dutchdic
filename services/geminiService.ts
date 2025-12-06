@@ -223,53 +223,67 @@ export const generateDefinitionClaude = async (
      throw new Error("Missing Claude API Key");
   }
 
-  // UPDATED PROMPT: Rigorous Dutch Dictionary
+  // UPDATED PROMPT: Rigorous Dutch Dictionary (User Requested)
   const prompt = `
-      You are a Rigorous Dutch Dictionary Compiler.
-      Task: Analyze the Dutch term "${term}" for a speaker of ${sourceLang}.
+      你是严谨的荷兰语词典编纂助手。
+      任务：分析单词 "${term}"，目标用户母语为 ${sourceLang}。
 
-      CORE RULES (STRICT):
-      1. Idioms/Proverbs MUST explicitly contain the word "${term}".
-      2. Verify idioms against reliable sources (e.g., Van Dale, Onze Taal, DBNL).
-      3. DO NOT invent idioms or combine words creatively.
-      4. If unsure about an idiom or if none exist, return "None".
-      5. You MUST generate the "examples" array with exactly 2 items.
+      核心规则：
+      1. 习语必须完整包含查询的单词本身 "${term}"
+      2. 所有习语必须通过 web_search 验证确切用词和存在性 (Van Dale, Onze Taal)
+      3. 禁止组合相关词创造新习语
+      4. 不确定的不输出
+      5. 禁止用词错误（如：verkeerde voet → 应该是 verkeerde been）
+      6. 只给真实意思，不给直译（不要 "literally:"）
 
-      CONTENT REQUIREMENTS (Map to JSON):
-      1. Definition: Concise, bulleted if necessary, in ${sourceLang}.
-      2. Examples: EXACTLY 2 distinct Dutch sentences + ${sourceLang} translation.
-      3. Grammar:
-         - Nouns: Must include Article (de/het) + Plural form.
-         - Verbs: Must include 3 Principal parts (Present, Past, Perfect).
-         - Adjectives: Comparative/Superlative if applicable.
-         - Synonyms/Antonyms (in Dutch).
-      4. Usage Note (Rich Text Format):
-         - Part A: Cultural/Usage Tip (~60 words, ${sourceLang}).
-         - Part B: 【Near Synonyms & Nuance】(List similar Dutch words + explain difference in ${sourceLang}).
-         - Part C: 【Common Collocations】(Dutch + ${sourceLang}).
-         - Part D: 【Idioms & Proverbs】(Strictly containing "${term}", verified, with meaning in ${sourceLang}).
+      搜索策略 (Simulate):
+      - 第一次搜索："${term}" + spreekwoorden uitdrukkingen
+      - 验证每个习语：搜索完整习语确认用词正确
+      - 确保涵盖常用习语
 
+      输出格式 (必须生成有效的 JSON):
+      
+      JSON 结构映射:
+      1. definition: 【母语解释】（简明准确，分点列出，使用 ${sourceLang}）
+      2. examples: 【例句】（2条，荷兰语+${sourceLang}翻译）
+      3. grammar: 
+          - partOfSpeech: 【词性】
+          - plural: 名词标复数
+          - verbForms: 动词标三主式
+          - adjectiveForms: 形容词的比较级别和最高级
+          - synonyms: 【同义词】(荷兰语)
+          - antonyms: 【反义词】(荷兰语)
+      4. usageNote: 包含以下三个部分，使用特定标题格式 (Rich Text String):
+          
+          【小贴士】
+          (60词左右，用${sourceLang}写，介绍文化背景/使用注意/有趣知识)
+
+          【常用搭配/常见结构】
+          (荷兰语 + ${sourceLang}翻译)
+
+          【固定表达/习语】
+          (格式如下，必须包含 "${term}"，验证后输出。如无则写"无")
+          - [习语荷兰语]
+            意思：[仅真实意思，不含直译]
+            例句：[荷兰语例句]
+            翻译：[${sourceLang}翻译]
+
+      习语输出严格要求：
+      ✅ 必须在搜索结果中找到
+      ✅ 必须验证确切用词
+      ✅ 必须包含查询词 "${term}" 本身
+      ✅ 必须有例句+翻译
+      ❌ 如搜索后仍不确定，不输出
+
+      错误案例：
+      ❌ "op de knieën liggen"（搜索验证：不存在）
+      ❌ "met de verkeerde voet uit bed"（用词错误，应该是 been不是voet）
+      ❌ 遗漏重要习语如 "onder de knie krijgen"
+      
       VALIDATION:
       - If "${term}" is NOT a valid Dutch word, return JSON with 'definition': "NOT_DUTCH".
-      
-      OUTPUT: Return ONLY a valid JSON object with the following structure:
-      {
-        "definition": "string",
-        "partOfSpeech": "string (Dutch abbrev: zn., ww., bn.)",
-        "examples": [
-          {"dutch": "string", "translation": "string"},
-          {"dutch": "string", "translation": "string"}
-        ],
-        "usageNote": "string (The formatted text with 【Headers】)",
-        "grammar_data": {
-           "article": "de/het",
-           "plural": "string",
-           "verbForms": "string (e.g. lopen - liep - gelopen)",
-           "adjectiveForms": "string",
-           "synonyms": ["string"],
-           "antonyms": ["string"]
-        }
-      }
+
+      现在请查询单词： "${term}"
     `;
 
   try {
@@ -393,36 +407,67 @@ export const generateDefinition = async (
 
   // 3. GEMINI GENERATION
   try {
-    // UPDATED PROMPT: Rigorous Dutch Dictionary (Same as Claude)
+    // UPDATED PROMPT: Rigorous Dutch Dictionary (User Requested) - Same as Claude
     const prompt = `
-      You are a Rigorous Dutch Dictionary Compiler.
-      Task: Analyze the Dutch term "${term}" for a speaker of ${sourceLang}.
+      你是严谨的荷兰语词典编纂助手。
+      任务：分析单词 "${term}"，目标用户母语为 ${sourceLang}。
 
-      CORE RULES (STRICT):
-      1. Idioms/Proverbs MUST explicitly contain the word "${term}".
-      2. Verify idioms against reliable sources (e.g., Van Dale, Onze Taal, DBNL).
-      3. DO NOT invent idioms or combine words creatively.
-      4. If unsure about an idiom or if none exist, return "None".
-      5. You MUST generate the "examples" array with exactly 2 items.
+      核心规则：
+      1. 习语必须完整包含查询的单词本身 "${term}"
+      2. 所有习语必须通过 web_search 验证确切用词和存在性 (Van Dale, Onze Taal)
+      3. 禁止组合相关词创造新习语
+      4. 不确定的不输出
+      5. 禁止用词错误（如：verkeerde voet → 应该是 verkeerde been）
+      6. 只给真实意思，不给直译（不要 "literally:"）
 
-      CONTENT REQUIREMENTS (Map to JSON):
-      1. Definition: Concise, bulleted if necessary, in ${sourceLang}.
-      2. Examples: EXACTLY 2 distinct Dutch sentences + ${sourceLang} translation.
-      3. Grammar:
-         - Nouns: Must include Article (de/het) + Plural form.
-         - Verbs: Must include 3 Principal parts (Present, Past, Perfect).
-         - Adjectives: Comparative/Superlative if applicable.
-         - Synonyms/Antonyms (in Dutch).
-      4. Usage Note (Rich Text Format):
-         - Part A: Cultural/Usage Tip (~60 words, ${sourceLang}).
-         - Part B: 【Near Synonyms & Nuance】(List similar Dutch words + explain difference in ${sourceLang}).
-         - Part C: 【Common Collocations】(Dutch + ${sourceLang}).
-         - Part D: 【Idioms & Proverbs】(Strictly containing "${term}", verified, with meaning in ${sourceLang}).
+      搜索策略 (Simulate):
+      - 第一次搜索："${term}" + spreekwoorden uitdrukkingen
+      - 验证每个习语：搜索完整习语确认用词正确
+      - 确保涵盖常用习语
 
+      输出格式 (必须生成有效的 JSON):
+      
+      JSON 结构映射:
+      1. definition: 【母语解释】（简明准确，分点列出，使用 ${sourceLang}）
+      2. examples: 【例句】（2条，荷兰语+${sourceLang}翻译）
+      3. grammar: 
+          - partOfSpeech: 【词性】
+          - plural: 名词标复数
+          - verbForms: 动词标三主式
+          - adjectiveForms: 形容词的比较级别和最高级
+          - synonyms: 【同义词】(荷兰语)
+          - antonyms: 【反义词】(荷兰语)
+      4. usageNote: 包含以下三个部分，使用特定标题格式 (Rich Text String):
+          
+          【小贴士】
+          (60词左右，用${sourceLang}写，介绍文化背景/使用注意/有趣知识)
+
+          【常用搭配/常见结构】
+          (荷兰语 + ${sourceLang}翻译)
+
+          【固定表达/习语】
+          (格式如下，必须包含 "${term}"，验证后输出。如无则写"无")
+          - [习语荷兰语]
+            意思：[仅真实意思，不含直译]
+            例句：[荷兰语例句]
+            翻译：[${sourceLang}翻译]
+
+      习语输出严格要求：
+      ✅ 必须在搜索结果中找到
+      ✅ 必须验证确切用词
+      ✅ 必须包含查询词 "${term}" 本身
+      ✅ 必须有例句+翻译
+      ❌ 如搜索后仍不确定，不输出
+
+      错误案例：
+      ❌ "op de knieën liggen"（搜索验证：不存在）
+      ❌ "met de verkeerde voet uit bed"（用词错误，应该是 been不是voet）
+      ❌ 遗漏重要习语如 "onder de knie krijgen"
+      
       VALIDATION:
       - If "${term}" is NOT a valid Dutch word, return JSON with 'definition': "NOT_DUTCH".
-      
-      OUTPUT: Pure JSON matching the schema.
+
+      现在请查询单词： "${term}"
     `;
 
     console.log("Using text model: gemini-2.5-flash");
@@ -448,7 +493,7 @@ export const generateDefinition = async (
                 }
               }
             },
-            usageNote: { type: Type.STRING, description: "Detailed structured note including Near Synonyms, Collocations, and Idioms" },
+            usageNote: { type: Type.STRING, description: "Detailed structured note including Tips, Collocations, and Idioms" },
             grammar: {
               type: Type.OBJECT,
               properties: {
