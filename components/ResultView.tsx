@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { DictionaryEntry } from '../types';
 import { playTTS, initAudio, playSuccessSound, playErrorSound } from '../services/geminiService';
@@ -288,7 +287,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
         {entry.imageUrl ? (
           <div className="-mx-6 mb-6 overflow-hidden shadow-sm border-t border-b border-gray-100">
             <img 
-               src={entry.imageUrl.startsWith('http') ? entry.imageUrl : `data:image/png;base64,${entry.imageUrl}`} 
+               src={entry.imageUrl.startsWith('http') || entry.imageUrl.startsWith('data:') ? entry.imageUrl : `data:image/jpeg;base64,${entry.imageUrl}`} 
                alt={entry.term} 
                className="w-full h-auto aspect-[2/1] object-cover transition-all" 
             />

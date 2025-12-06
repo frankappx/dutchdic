@@ -156,7 +156,7 @@ export const playErrorSound = async () => {
 
 /**
  * Adds a watermark to the bottom right of the image using HTML5 Canvas.
- * RESIZES to 640x360 (16:9) and returns PNG to ensure compatibility.
+ * RESIZES to 960x540 (16:9 qHD) and returns JPEG (0.95) to ensure compatibility and small size.
  */
 const addWatermark = (base64Image: string): Promise<string> => {
   return new Promise((resolve) => {
@@ -170,9 +170,9 @@ const addWatermark = (base64Image: string): Promise<string> => {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      // OPTIMIZATION: Resize to 640x360 (16:9 Aspect Ratio)
-      const TARGET_WIDTH = 640;
-      const TARGET_HEIGHT = 360;
+      // OPTIMIZATION: Resize to 960x540 (16:9 Aspect Ratio) for desktop clarity
+      const TARGET_WIDTH = 960;
+      const TARGET_HEIGHT = 540;
       
       canvas.width = TARGET_WIDTH;
       canvas.height = TARGET_HEIGHT;
@@ -184,7 +184,7 @@ const addWatermark = (base64Image: string): Promise<string> => {
 
         // 2. Configure Watermark Text
         const text = "@Parlolo";
-        const fontSize = Math.max(14, Math.floor(TARGET_WIDTH * 0.035));
+        const fontSize = Math.max(16, Math.floor(TARGET_WIDTH * 0.035));
         const padding = Math.floor(fontSize * 0.8);
 
         ctx.font = `900 ${fontSize}px sans-serif`; 
@@ -204,8 +204,9 @@ const addWatermark = (base64Image: string): Promise<string> => {
         ctx.fillText(text, x, y);
       }
       
-      // Return clean Base64 (strip prefix) in PNG format
-      const dataUrl = canvas.toDataURL('image/png');
+      // Return clean Base64 (strip prefix) in High Quality JPEG format
+      // JPEG 0.95 is sharp but much smaller than PNG at this resolution
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
       resolve(dataUrl.split(',')[1]);
     };
     img.onerror = () => {
@@ -400,7 +401,8 @@ export const generateVisualization = async (
     
     STRICT REQUIREMENTS:
     1. STRICTLY NO TEXT. Do not include any words, letters, labels, or speech bubbles in the image.
-    2. The image should be pure visual art.`;
+    2. The image should be pure visual art.
+    3. 960x540 resolution, lightweight, optimized for web use, under 300KB.`;
 
   try {
     console.log("Using image model: gemini-3-pro-image-preview");

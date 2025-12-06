@@ -85,6 +85,7 @@ const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
 };
 
 // Helper: Add Watermark (Canvas) AND Resize (16:9)
+// UPDATED: 960x540 for better desktop clarity, JPEG 0.95 for quality+size balance
 const addWatermark = (base64Image: string): Promise<string> => {
   return new Promise((resolve) => {
     if (typeof window === 'undefined') {
@@ -95,10 +96,10 @@ const addWatermark = (base64Image: string): Promise<string> => {
     img.crossOrigin = "anonymous";
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      // OPTIMIZATION: Resize to 640x360 (16:9 Aspect Ratio)
-      // 640x360 = 230,400 pixels (Smaller than 512x512)
-      const TARGET_WIDTH = 640;
-      const TARGET_HEIGHT = 360;
+      // OPTIMIZATION: Resize to 960x540 (16:9 Aspect Ratio)
+      // High Definition (qHD), looks good on desktop, lightweight enough for web.
+      const TARGET_WIDTH = 960;
+      const TARGET_HEIGHT = 540;
       
       canvas.width = TARGET_WIDTH;
       canvas.height = TARGET_HEIGHT;
@@ -109,7 +110,7 @@ const addWatermark = (base64Image: string): Promise<string> => {
         ctx.drawImage(img, 0, 0, TARGET_WIDTH, TARGET_HEIGHT);
 
         const text = "@Parlolo";
-        const fontSize = Math.max(14, Math.floor(TARGET_WIDTH * 0.035));
+        const fontSize = Math.max(16, Math.floor(TARGET_WIDTH * 0.035));
         const padding = Math.floor(fontSize * 0.8);
 
         ctx.font = `900 ${fontSize}px sans-serif`;
@@ -128,8 +129,9 @@ const addWatermark = (base64Image: string): Promise<string> => {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
         ctx.fillText(text, x, y);
       }
-      // Revert to PNG (default)
-      resolve(canvas.toDataURL('image/png').split(',')[1]);
+      // Export as High Quality JPEG (0.95)
+      // This is clearer than 640x360 PNG and usually smaller than 960x540 PNG.
+      resolve(canvas.toDataURL('image/jpeg', 0.95).split(',')[1]);
     };
     img.onerror = () => resolve(base64Image);
     img.src = `data:image/png;base64,${base64Image}`;
@@ -378,9 +380,10 @@ export const processBatch = async (
         const stylePrompt = stylePrompts[config.imageStyle] || stylePrompts['ghibli'];
         const randomBg = DUTCH_BACKGROUNDS[Math.floor(Math.random() * DUTCH_BACKGROUNDS.length)];
 
+        // Updated Prompt with 960x540 instruction
         const imgPrompt = `Create a ${stylePrompt} illustration of: "${contextSentence}". Key object: "${term}". 
         SETTING & CONTEXT: ${randomBg}. Atmosphere: Authentic Netherlands.
-        STRICT REQUIREMENTS: STRICTLY NO TEXT. Pure visual art.`;
+        STRICT REQUIREMENTS: 960x540 resolution, lightweight, optimized for web use, under 300KB. STRICTLY NO TEXT. Pure visual art.`;
 
         try {
           const imgResp = await withTimeout<GenerateContentResponse>(
@@ -395,17 +398,16 @@ export const processBatch = async (
           const base64Img = imgResp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData)?.inlineData?.data;
           
           if (base64Img) {
-            onLog(`   -> Optimizing: Resizing to 640x360 (16:9) & Compressing...`);
+            onLog(`   -> Optimizing: Resizing to 960x540 & Compressing (JPEG)...`);
             const watermarkedBase64 = await addWatermark(base64Img);
 
             const rawBytes = base64ToUint8Array(watermarkedBase64);
             if (rawBytes) {
-                // Changed back to PNG
-                const blob = new Blob([rawBytes], { type: 'image/png' });
-                // Changed extension to .png
-                const fileName = `images/${term}_${config.imageStyle}_${Date.now()}.png`;
+                // Upload as JPEG
+                const blob = new Blob([rawBytes], { type: 'image/jpeg' });
+                const fileName = `images/${term}_${config.imageStyle}_${Date.now()}.jpg`;
                 
-                const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/png' });
+                const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(fileName, blob, { contentType: 'image/jpeg' });
                 if (!upErr) {
                    const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
                    await supabase.from('word_images').upsert({
