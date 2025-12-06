@@ -215,8 +215,9 @@ export const generateDefinitionClaude = async (
   targetLang: string,
   claudeKey: string
 ): Promise<any> => {
-  // Using stable Claude 3.5 Sonnet
-  console.log("Using text model: Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)");
+  // Using 'claude-3-5-sonnet-latest' alias to avoid 404s with dated versions
+  const MODEL_NAME = "claude-3-5-sonnet-latest";
+  console.log(`Using text model: ${MODEL_NAME}`);
   
   if (!claudeKey) {
      throw new Error("Missing Claude API Key");
@@ -285,14 +286,13 @@ export const generateDefinitionClaude = async (
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": claudeKey.trim(), // Ensure no whitespace
+        "x-api-key": claudeKey.trim(),
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
-        // CORRECT HEADER for browser usage
         "anthropic-dangerous-direct-browser-access": "true" 
       },
       body: JSON.stringify({
-        model: "claude-3-5-sonnet-20240620", 
+        model: MODEL_NAME, 
         max_tokens: 8192,
         messages: [{ role: "user", content: prompt }]
       })
@@ -301,8 +301,8 @@ export const generateDefinitionClaude = async (
     if (!response.ok) {
        const err = await response.json().catch(() => ({}));
        console.error("Claude API Error Body:", err);
-       // Throw a descriptive error
-       throw new Error(`Claude API Error ${response.status}: ${err.error?.message || response.statusText}`);
+       const errorMessage = err.error?.message || response.statusText;
+       throw new Error(`Claude API Error ${response.status}: ${errorMessage}`);
     }
 
     const data = await response.json();
