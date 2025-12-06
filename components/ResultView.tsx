@@ -155,7 +155,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
   const renderUsageNote = (note: string) => {
     if (!note) return null;
     
-    // Simple bold formatter
+    // Simple bold formatter for text spans
     const formatText = (text: string) => {
         const parts = text.split(/(\*\*.*?\*\*)/);
         return parts.map((part, i) => {
@@ -184,15 +184,29 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
           if (trimmed.startsWith('###')) {
             const lines = trimmed.split('\n');
             const header = lines[0].replace(/###/g, '').trim();
-            const content = lines.slice(1).join('\n').trim();
+            const contentLines = lines.slice(1).filter(l => l.trim().length > 0);
             
             return (
               <div key={index} className="pt-2 border-t border-pop-teal/10">
                 <h4 className="font-bold text-pop-teal text-xs uppercase tracking-wider mb-3">
                   {header}
                 </h4>
-                <div className="whitespace-pre-wrap leading-relaxed space-y-1 pl-1">
-                   {formatText(content)}
+                <div className="space-y-2">
+                   {contentLines.map((line, lineIdx) => {
+                      const isListItem = line.trim().startsWith('-') || line.trim().startsWith('*');
+                      const cleanLine = line.replace(/^[-*]\s*/, '').trim();
+                      
+                      if (isListItem) {
+                        return (
+                          <div key={lineIdx} className="flex gap-2 items-start pl-1">
+                             <span className="text-pop-teal mt-1.5 text-[6px] shrink-0"><i className="fa-solid fa-circle"></i></span>
+                             <p className="leading-relaxed">{formatText(cleanLine)}</p>
+                          </div>
+                        );
+                      }
+                      
+                      return <p key={lineIdx} className="leading-relaxed pl-1">{formatText(line)}</p>;
+                   })}
                 </div>
               </div>
             );

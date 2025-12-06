@@ -270,21 +270,32 @@ export const generateDefinition = async (
   // 2. GEMINI FALLBACK
   try {
     const prompt = `
-      Role: Strict Dictionary API.
+      Role: Strict Dictionary API & Cultural Expert.
       Task: Analyze the term "${term}" for a Dutch learner.
       
       Constraints:
       1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
       2. Definition: Max 15 words. Concise.
       3. Usage Note: Use this structure EXACTLY:
-         - Part 1: Cultural/usage tip in ${sourceLang}. Around 60 words. Fun and helpful.
+         - Part 1: Cultural/usage tip in ${sourceLang}. Around 60 words.
          - Part 2: strictly double newline, then header "### Common Collocations" (Translate header to ${sourceLang}).
-           List 3-5 useful collocations (Verb+Word, Adj+Word, etc.) with translations in ${sourceLang}.
+           List 3-5 useful collocations.
+           FORMAT: Bullet point "- Dutch phrase: Translation". 
+           Each collocation MUST be on a new line. 
          - Part 3: strictly double newline, then header "### Idioms & Proverbs" (Translate header to ${sourceLang}).
-           List 1-3 fixed expressions/idioms containing the word. For each, provide the phrase, meaning (${sourceLang}), Dutch example sentence, and translation (${sourceLang}).
-           CRITICAL: If an equivalent idiom exists in ${sourceLang}, USE IT for the meaning/translation (e.g., "als de kat van huis is" -> "山中无老虎..." in Chinese).
+           List 1-3 fixed expressions/idioms.
+           FORMAT: Bullet point "- Dutch Idiom: Meaning (${sourceLang})".
+           
+           CRITICAL RULES FOR IDIOMS:
+           1. VERIFY authenticity. Only use existing Dutch idioms found in standard lists (e.g., Van Dale, Wikipedia "Lijst van Nederlandse spreekwoorden").
+           2. DO NOT translate English idioms literally into Dutch if they don't exist (e.g., "He is off the fish" is fake. Do not use it.).
+           3. If an equivalent idiom exists in ${sourceLang}, USE IT for the translation (e.g., "als de kat van huis is" -> "山中无老虎..." in Chinese).
+           4. Provide a Dutch example sentence for the idiom.
          
-         Format as proper Markdown. Use bolding for key phrases.
+         FORMATTING RULES:
+         - Use standard sentence case (e.g., "De kat uit de boom kijken").
+         - Do NOT use ALL CAPS.
+         - Use bold markdown (**text**) for the Dutch phrase.
          
       4. Examples: Exactly 2 examples.
          - 'dutch' field: MUST be the Dutch sentence.
