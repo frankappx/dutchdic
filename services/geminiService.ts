@@ -230,7 +230,13 @@ export const generateDefinitionClaude = async (
       Constraints:
       1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
       2. Definition: Max 15 words. Concise.
-      3. Usage Note: Use this structure EXACTLY. 
+      
+      3. Examples: Provide EXACTLY 2 distinct example sentences using "${term}".
+         - These MUST be returned in the 'examples' JSON array.
+         - 'dutch': Dutch sentence.
+         - 'translation': Translation in ${sourceLang}.
+
+      4. Usage Note: Use this structure EXACTLY. 
          STRICT FORMATTING RULES:
          - NO bullet points (dots, hyphens) at the start of lines.
          - NO quotation marks around sentences.
@@ -262,9 +268,6 @@ export const generateDefinitionClaude = async (
 
            (Ensure there is a blank line between distinct idioms).
 
-      4. Examples: Exactly 2 examples.
-         - 'dutch' field: MUST be the Dutch sentence.
-         - 'translation' field: MUST be the translation in ${sourceLang}.
       5. Synonyms/Antonyms: Max 5 items each.
       
       VALIDATION:
@@ -282,10 +285,10 @@ export const generateDefinitionClaude = async (
            "synonyms": ["string"],
            "antonyms": ["string"]
         },
-        "usageNote": "string (the structured note)",
         "examples": [
           {"dutch": "string", "translation": "string"}
-        ]
+        ],
+        "usageNote": "string (the structured note)"
       }
     `;
 
@@ -420,7 +423,13 @@ export const generateDefinition = async (
       Constraints:
       1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
       2. Definition: Max 15 words. Concise.
-      3. Usage Note: Use this structure EXACTLY. 
+      
+      3. Examples: Provide EXACTLY 2 distinct example sentences using "${term}".
+         - These MUST be returned in the 'examples' JSON array.
+         - 'dutch': Dutch sentence.
+         - 'translation': Translation in ${sourceLang}.
+
+      4. Usage Note: Use this structure EXACTLY. 
          STRICT FORMATTING RULES:
          - NO bullet points (dots, hyphens) at the start of lines.
          - NO quotation marks around sentences.
@@ -452,9 +461,6 @@ export const generateDefinition = async (
 
            (Ensure there is a blank line between distinct idioms).
          
-      4. Examples: Exactly 2 examples.
-         - 'dutch' field: MUST be the Dutch sentence.
-         - 'translation' field: MUST be the translation in ${sourceLang}.
       5. Synonyms/Antonyms: Max 5 items each.
       6. OUTPUT: Pure JSON.
       
