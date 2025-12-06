@@ -230,13 +230,17 @@ export const processBatch = async (
 
         wordData = generatedData;
 
+        // FIXED: geminiService normalizes output to use 'grammar' (not grammar_data) and 'examples' with 'target'/'source' keys.
+        // We must map these correctly for the DB.
+        const grammarDataToSave = wordData.grammar || wordData.grammar_data;
+
         // Save to DB
         const { data: wordRow, error: wordErr } = await supabase
           .from('words')
           .upsert({ 
             term: term, 
-            part_of_speech: wordData.partOfSpeech,
-            grammar_data: wordData.grammar_data
+            part_of_speech: wordData.partOfSpeech || grammarDataToSave?.partOfSpeech,
+            grammar_data: grammarDataToSave
           }, { onConflict: 'term' })
           .select('id, pronunciation_audio_url') 
           .single();
@@ -252,21 +256,30 @@ export const processBatch = async (
           usage_note: wordData.usageNote
         }, { onConflict: 'word_id, language_code' });
 
-        if (wordData.examples) {
+        if (wordData.examples && Array.isArray(wordData.examples)) {
           let idx = 0;
           for (const ex of wordData.examples) {
-            await supabase.from('examples').upsert({
-              word_id: wordId,
-              language_code: targetLangCode,
-              sentence_index: idx,
-              dutch_sentence: ex.dutch,
-              translation: ex.translation,
-              audio_url: null 
-            }, { onConflict: 'word_id, language_code, sentence_index' });
-            idx++;
+            // FIXED: geminiService uses 'target'/'source' keys.
+            // DB expects 'dutch_sentence'/'translation'.
+            const dutchSentence = ex.target || ex.dutch;
+            const translation = ex.source || ex.translation;
+
+            if (dutchSentence) {
+              await supabase.from('examples').upsert({
+                word_id: wordId,
+                language_code: targetLangCode,
+                sentence_index: idx,
+                dutch_sentence: dutchSentence,
+                translation: translation,
+                audio_url: null 
+              }, { onConflict: 'word_id, language_code, sentence_index' });
+              idx++;
+            }
           }
+          onLog(`✅ Text saved (${idx} examples).`);
+        } else {
+           onLog(`⚠️ No examples found in generated data.`);
         }
-        onLog(`✅ Text saved.`);
       }
 
       // --- LOOKUP ---
@@ -300,6 +313,7 @@ export const processBatch = async (
             
             wordData = { 
               grammar_data: existingWordRow.grammar_data || {},
+              // Map DB examples back to internal format for audio processing
               examples: existExs ? existExs.map((e: any) => ({ 
                 dutch: e.dutch_sentence, 
                 index: e.sentence_index,
@@ -307,6 +321,7 @@ export const processBatch = async (
               })) : [] 
             };
             
+            // Fallback for image context if no examples found
             if (config.tasks.image && (!wordData.examples || wordData.examples.length === 0)) {
                const { data: anyEx } = await supabase
                  .from('examples')
@@ -324,7 +339,9 @@ export const processBatch = async (
       // --- PHASE B: IMAGE GENERATION (ALWAYS GEMINI) ---
       if (config.tasks.image && wordId) {
         onLog(`🎨 Painting illustration (${config.imageStyle})...`);
-        const contextSentence = wordData?.examples?.[0]?.dutch || term;
+        // Use normalized access for context sentence
+        const contextSentence = wordData?.examples?.[0]?.dutch || wordData?.examples?.[0]?.target || term;
+        
         const stylePrompts: Record<string, string> = {
           cartoon: 'fun, energetic cartoon style',
           ghibli: 'healing slice-of-life anime style, detailed backgrounds, soft colors, relaxing atmosphere', 
@@ -450,7 +467,8 @@ export const processBatch = async (
                      onLog(`   ⏭️ [Word] Audio exists. Skipping.`);
                 } else {
                     let textToSpeak = term;
-                    const article = wordData?.grammar_data?.article;
+                    const grammar = wordData.grammar || wordData.grammar_data;
+                    const article = grammar?.article;
                     if (article && (article === 'de' || article === 'het')) {
                         textToSpeak = `${article} ${term}`;
                     }
@@ -466,17 +484,20 @@ export const processBatch = async (
             if (wordData.examples) {
                let idx = 0;
                for (const ex of wordData.examples) {
+                  // Normalize keys for reading
+                  const dutchText = ex.dutch || ex.target;
+                  
                   const sIndex = (ex as any).index !== undefined ? (ex as any).index : idx;
                   const shouldGen = (sIndex === 0 && config.tasks.audioEx1) || (sIndex === 1 && config.tasks.audioEx2);
 
-                  if (shouldGen && ex.dutch) {
+                  if (shouldGen && dutchText) {
                      const exHasAudio = (ex as any).hasAudio;
                      if (exHasAudio && !config.overwriteAudio) {
                           onLog(`   ⏭️ [Example ${sIndex + 1}] Audio exists. Skipping.`);
                      } else {
                          await sleep(500); 
                          const targetVoiceId = (sIndex === 0) ? voiceIds.ex1 : voiceIds.ex2;
-                         const exUrl = await generateAndUploadTTS(ex.dutch, 'audio/examples', targetVoiceId);
+                         const exUrl = await generateAndUploadTTS(dutchText, 'audio/examples', targetVoiceId);
                          if (exUrl) {
                             await supabase.from('examples').update({ audio_url: exUrl })
                               .eq('word_id', wordId)
