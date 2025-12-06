@@ -151,6 +151,60 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
     }
   };
 
+  // Helper to render the rich usage note with headers
+  const renderUsageNote = (note: string) => {
+    if (!note) return null;
+    
+    // Simple bold formatter
+    const formatText = (text: string) => {
+        const parts = text.split(/(\*\*.*?\*\*)/);
+        return parts.map((part, i) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+                return <strong key={i} className="font-bold text-pop-dark">{part.slice(2, -2)}</strong>;
+            }
+            return part;
+        });
+    };
+
+    // If no markdown headers detected, return simple paragraph (backward compatibility)
+    if (!note.includes('###')) {
+      return <p className="text-pop-dark/80 text-sm leading-relaxed whitespace-pre-wrap">{formatText(note)}</p>;
+    }
+    
+    // Split by headers (###)
+    // We use a lookahead regex to keep the delimiter
+    const sections = note.split(/(?=###)/);
+    
+    return (
+      <div className="text-sm text-pop-dark/80 space-y-5">
+        {sections.map((section, index) => {
+          const trimmed = section.trim();
+          if (!trimmed) return null;
+
+          if (trimmed.startsWith('###')) {
+            const lines = trimmed.split('\n');
+            const header = lines[0].replace(/###/g, '').trim();
+            const content = lines.slice(1).join('\n').trim();
+            
+            return (
+              <div key={index} className="pt-2 border-t border-pop-teal/10">
+                <h4 className="font-bold text-pop-teal text-xs uppercase tracking-wider mb-3">
+                  {header}
+                </h4>
+                <div className="whitespace-pre-wrap leading-relaxed space-y-1 pl-1">
+                   {formatText(content)}
+                </div>
+              </div>
+            );
+          } else {
+             // This is the first section (the actual tip)
+             return <p key={index} className="leading-relaxed font-medium">{formatText(trimmed)}</p>;
+          }
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="pb-24 animate-fade-in relative">
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-4">
@@ -345,7 +399,8 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
               <i className="fa-solid fa-lightbulb mr-2"></i> {labels.quickTip}
             </h3>
           </div>
-          <p className="text-pop-dark/80 text-sm leading-relaxed">{entry.usageNote}</p>
+          {/* Custom Renderer for Markdown support */}
+          {renderUsageNote(entry.usageNote)}
         </div>
       </div>
 

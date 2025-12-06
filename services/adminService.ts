@@ -222,7 +222,16 @@ export const processBatch = async (
              - "adjectiveForms": "base - comp - sup" (if adj).
              - "synonyms": Array of strings (Dutch, max 3).
              - "antonyms": Array of strings (Dutch, max 3).
-          4. "usageNote": Cultural/usage tip in ${targetLangName}. MAX 60-70 words. Rich and helpful.
+          4. "usageNote": Use this structure EXACTLY:
+             - Part 1: Cultural/usage tip in ${targetLangName}. Around 60 words. Fun and helpful.
+             - Part 2: strictly double newline, then header "### Common Collocations" (Translate header to ${targetLangName}).
+               List 3-5 useful collocations (Verb+Word, Adj+Word, etc.) with translations in ${targetLangName}.
+             - Part 3: strictly double newline, then header "### Idioms & Proverbs" (Translate header to ${targetLangName}).
+               List 1-3 fixed expressions/idioms containing the word. For each, provide the phrase, meaning (${targetLangName}), Dutch example sentence, and translation (${targetLangName}).
+               CRITICAL: If an equivalent idiom exists in ${targetLangName}, USE IT for the meaning/translation (e.g., "als de kat van huis is" -> "山中无老虎..." in Chinese).
+             
+             Format as proper Markdown. Use bolding for key phrases.
+             
           5. "examples": Array of exactly 2 objects:
              - "dutch": The Dutch sentence.
              - "translation": The ${targetLangName} translation.

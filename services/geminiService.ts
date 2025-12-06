@@ -276,7 +276,16 @@ export const generateDefinition = async (
       Constraints:
       1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
       2. Definition: Max 15 words. Concise.
-      3. Usage Note: Around 60 words. Fun, detailed, and helpful cultural or usage context.
+      3. Usage Note: Use this structure EXACTLY:
+         - Part 1: Cultural/usage tip in ${sourceLang}. Around 60 words. Fun and helpful.
+         - Part 2: strictly double newline, then header "### Common Collocations" (Translate header to ${sourceLang}).
+           List 3-5 useful collocations (Verb+Word, Adj+Word, etc.) with translations in ${sourceLang}.
+         - Part 3: strictly double newline, then header "### Idioms & Proverbs" (Translate header to ${sourceLang}).
+           List 1-3 fixed expressions/idioms containing the word. For each, provide the phrase, meaning (${sourceLang}), Dutch example sentence, and translation (${sourceLang}).
+           CRITICAL: If an equivalent idiom exists in ${sourceLang}, USE IT for the meaning/translation (e.g., "als de kat van huis is" -> "山中无老虎..." in Chinese).
+         
+         Format as proper Markdown. Use bolding for key phrases.
+         
       4. Examples: Exactly 2 examples.
          - 'dutch' field: MUST be the Dutch sentence.
          - 'translation' field: MUST be the translation in ${sourceLang}.
@@ -316,7 +325,7 @@ export const generateDefinition = async (
                 }
               }
             },
-            usageNote: { type: Type.STRING, description: "Detailed usage note (approx 60 words)" },
+            usageNote: { type: Type.STRING, description: "Detailed structured note with Collocations and Idioms" },
             grammar: {
               type: Type.OBJECT,
               properties: {
