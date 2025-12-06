@@ -318,12 +318,13 @@ export const generateDefinition = async (
       3. If INVALID, return JSON with 'definition': "NOT_DUTCH".
     `;
 
-    console.log("Using text model: gemini-2.5-flash");
+    console.log("Using text model: gemini-3-pro-preview");
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION_BASE,
+        temperature: 0.1, // LOW TEMPERATURE FOR STABILITY
         responseMimeType: "application/json",
         maxOutputTokens: 8192,
         responseSchema: {

@@ -256,10 +256,12 @@ export const processBatch = async (
 
         const textResp = await withTimeout<GenerateContentResponse>(
             ai.models.generateContent({
-              model: "gemini-2.5-flash",
+              model: "gemini-3-pro-preview",
               contents: prompt,
               config: {
+                temperature: 0.1, // LOW TEMPERATURE FOR STABILITY
                 responseMimeType: "application/json",
+                maxOutputTokens: 8192,
                 responseSchema: {
                   type: Type.OBJECT,
                   properties: {
