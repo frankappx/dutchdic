@@ -37,9 +37,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
   const [elevenLabsKey, setElevenLabsKey] = useState('');
   
   // CHANGED: Three separate Voice IDs with requested defaults
-  const [voiceIdWord, setVoiceIdWord] = useState('OlBRrVAItyi00MuGMbna');
+  // Updated defaults for Word and Ex2 to '7qdUFMklKPaaAVMsBTBt'
+  const [voiceIdWord, setVoiceIdWord] = useState('7qdUFMklKPaaAVMsBTBt');
   const [voiceIdEx1, setVoiceIdEx1] = useState('fIYdULbypRf7uZYX6u0T');
-  const [voiceIdEx2, setVoiceIdEx2] = useState('OlBRrVAItyi00MuGMbna');
+  const [voiceIdEx2, setVoiceIdEx2] = useState('7qdUFMklKPaaAVMsBTBt');
   
   const [targetLang, setTargetLang] = useState('en'); // Default to English
   const [wordInput, setWordInput] = useState('');
@@ -102,11 +103,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       return;
     }
     
-    // Bundle Voice IDs
+    // Bundle Voice IDs with updated defaults as fallbacks
     const voiceIds = {
-      word: voiceIdWord.trim() || 'OlBRrVAItyi00MuGMbna',
+      word: voiceIdWord.trim() || '7qdUFMklKPaaAVMsBTBt',
       ex1: voiceIdEx1.trim() || 'fIYdULbypRf7uZYX6u0T',
-      ex2: voiceIdEx2.trim() || 'OlBRrVAItyi00MuGMbna'
+      ex2: voiceIdEx2.trim() || '7qdUFMklKPaaAVMsBTBt'
     };
 
     const words = wordInput.split('\n').filter(w => w.trim().length > 0);
