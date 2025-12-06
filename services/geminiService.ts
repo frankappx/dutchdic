@@ -223,72 +223,48 @@ export const generateDefinitionClaude = async (
      throw new Error("Missing Claude API Key");
   }
 
+  // UPDATED PROMPT: Rigorous Dutch Dictionary
   const prompt = `
-      You are a Strict Dictionary API & Cultural Expert.
-      Task: Analyze the term "${term}" for a Dutch learner.
-      
-      CRITICAL INSTRUCTION: You MUST generate the "examples" array. Do not skip it.
-      
-      Constraints:
-      1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
-      
-      2. Examples (MANDATORY): Provide EXACTLY 2 distinct example sentences using "${term}".
-         - These MUST be included in the 'examples' JSON array.
-         - 'dutch': Dutch sentence.
-         - 'translation': Translation in ${sourceLang}.
+      You are a Rigorous Dutch Dictionary Compiler.
+      Task: Analyze the Dutch term "${term}" for a speaker of ${sourceLang}.
 
-      3. Definition: Max 15 words. Concise.
-      
-      4. Usage Note: Use this structure EXACTLY. 
-         STRICT FORMATTING RULES:
-         - NO bullet points (dots, hyphens) at the start of lines.
-         - NO quotation marks around sentences.
-         - Use specific bracket headers: 【...】
+      CORE RULES (STRICT):
+      1. Idioms/Proverbs MUST explicitly contain the word "${term}".
+      2. Verify idioms against reliable sources (e.g., Van Dale, Onze Taal, DBNL).
+      3. DO NOT invent idioms or combine words creatively.
+      4. If unsure about an idiom or if none exist, return "None".
+      5. You MUST generate the "examples" array with exactly 2 items.
 
-         Structure:
-         - Part 1: Cultural/usage tip in ${sourceLang}. Around 60 words.
-         
-         - Part 2: strictly double newline, then header "【Common Collocations / Structure】" (Translate header to ${sourceLang}).
-           List ALL common collocations.
-           FORMAT: Dutch phrase [space] Translation
-           (Do not use bullets. Just new lines.)
+      CONTENT REQUIREMENTS (Map to JSON):
+      1. Definition: Concise, bulleted if necessary, in ${sourceLang}.
+      2. Examples: EXACTLY 2 distinct Dutch sentences + ${sourceLang} translation.
+      3. Grammar:
+         - Nouns: Must include Article (de/het) + Plural form.
+         - Verbs: Must include 3 Principal parts (Present, Past, Perfect).
+         - Adjectives: Comparative/Superlative if applicable.
+         - Synonyms/Antonyms (in Dutch).
+      4. Usage Note (Rich Text Format):
+         - Part A: Cultural/Usage Tip (~60 words, ${sourceLang}).
+         - Part B: 【Near Synonyms & Nuance】(List similar Dutch words + explain difference in ${sourceLang}).
+         - Part C: 【Common Collocations】(Dutch + ${sourceLang}).
+         - Part D: 【Idioms & Proverbs】(Strictly containing "${term}", verified, with meaning in ${sourceLang}).
 
-         - Part 3: strictly double newline, then header "【Idioms & Proverbs】" (Translate header to ${sourceLang}).
-           List ALL relevant, famous, and authentic fixed expressions/idioms/proverbs.
-           
-           CRITICAL TRANSLATION RULES FOR IDIOMS:
-           1. Translate the ACTUAL MEANING (semantics), not literal.
-           2. If ${sourceLang} has an equivalent proverb, YOU MUST USE THAT EQUIVALENT.
-           3. The Dutch Idiom/Proverb MUST be bolded using markdown (**text**).
-           4. DO NOT use bullet points. 
-           5. DO NOT use quotation marks.
-           
-           FORMAT PER IDIOM (Strict Block Structure):
-           **[Dutch Idiom]**
-           [Word for 'Meaning' in ${sourceLang}]: [Real Meaning/Equivalent in ${sourceLang}]
-           [Word for 'Example' in ${sourceLang}]: [Dutch Sentence]
-           [Word for 'Translation' in ${sourceLang}]: [Translation]
-
-           (Ensure there is a blank line between distinct idioms).
-
-      5. Synonyms/Antonyms: Max 5 items each.
-      
       VALIDATION:
       - If "${term}" is NOT a valid Dutch word, return JSON with 'definition': "NOT_DUTCH".
       
-      OUTPUT: Return ONLY a valid JSON object with the following structure (order matters):
+      OUTPUT: Return ONLY a valid JSON object with the following structure:
       {
         "definition": "string",
-        "partOfSpeech": "string (Dutch abbrev)",
+        "partOfSpeech": "string (Dutch abbrev: zn., ww., bn.)",
         "examples": [
           {"dutch": "string", "translation": "string"},
           {"dutch": "string", "translation": "string"}
         ],
-        "usageNote": "string (the structured note)",
+        "usageNote": "string (The formatted text with 【Headers】)",
         "grammar_data": {
-           "plural": "string",
            "article": "de/het",
-           "verbForms": "string",
+           "plural": "string",
+           "verbForms": "string (e.g. lopen - liep - gelopen)",
            "adjectiveForms": "string",
            "synonyms": ["string"],
            "antonyms": ["string"]
@@ -403,9 +379,6 @@ export const generateDefinition = async (
   }
 
   // 2. CLAUDE OR GEMINI FALLBACK
-  
-  // Prefer Claude if Key exists and provider is claude or default
-  // REMOVED HARDCODED KEY: Must use Environment Variable
   const activeClaudeKey = claudeKeyEnv;
   
   if (provider === 'claude' && activeClaudeKey) {
@@ -420,69 +393,38 @@ export const generateDefinition = async (
 
   // 3. GEMINI GENERATION
   try {
+    // UPDATED PROMPT: Rigorous Dutch Dictionary (Same as Claude)
     const prompt = `
-      Role: Strict Dictionary API & Cultural Expert.
-      Task: Analyze the term "${term}" for a Dutch learner.
+      You are a Rigorous Dutch Dictionary Compiler.
+      Task: Analyze the Dutch term "${term}" for a speaker of ${sourceLang}.
+
+      CORE RULES (STRICT):
+      1. Idioms/Proverbs MUST explicitly contain the word "${term}".
+      2. Verify idioms against reliable sources (e.g., Van Dale, Onze Taal, DBNL).
+      3. DO NOT invent idioms or combine words creatively.
+      4. If unsure about an idiom or if none exist, return "None".
+      5. You MUST generate the "examples" array with exactly 2 items.
+
+      CONTENT REQUIREMENTS (Map to JSON):
+      1. Definition: Concise, bulleted if necessary, in ${sourceLang}.
+      2. Examples: EXACTLY 2 distinct Dutch sentences + ${sourceLang} translation.
+      3. Grammar:
+         - Nouns: Must include Article (de/het) + Plural form.
+         - Verbs: Must include 3 Principal parts (Present, Past, Perfect).
+         - Adjectives: Comparative/Superlative if applicable.
+         - Synonyms/Antonyms (in Dutch).
+      4. Usage Note (Rich Text Format):
+         - Part A: Cultural/Usage Tip (~60 words, ${sourceLang}).
+         - Part B: 【Near Synonyms & Nuance】(List similar Dutch words + explain difference in ${sourceLang}).
+         - Part C: 【Common Collocations】(Dutch + ${sourceLang}).
+         - Part D: 【Idioms & Proverbs】(Strictly containing "${term}", verified, with meaning in ${sourceLang}).
+
+      VALIDATION:
+      - If "${term}" is NOT a valid Dutch word, return JSON with 'definition': "NOT_DUTCH".
       
-      CRITICAL INSTRUCTION: You MUST generate the "examples" array. Do not skip it.
-
-      Constraints:
-      1. Target Language: ${targetLang} (Dutch). Source Language: ${sourceLang}.
-      
-      2. Examples (MANDATORY): Provide EXACTLY 2 distinct example sentences using "${term}".
-         - These MUST be returned in the 'examples' JSON array.
-         - 'dutch': Dutch sentence.
-         - 'translation': Translation in ${sourceLang}.
-
-      3. Definition: Max 15 words. Concise.
-      
-      4. Usage Note: Use this structure EXACTLY. 
-         STRICT FORMATTING RULES:
-         - NO bullet points (dots, hyphens) at the start of lines.
-         - NO quotation marks around sentences.
-         - Use specific bracket headers: 【...】
-
-         Structure:
-         - Part 1: Cultural/usage tip in ${sourceLang}. Around 60 words.
-         
-         - Part 2: strictly double newline, then header "【Common Collocations / Structure】" (Translate header to ${sourceLang}).
-           List ALL common collocations.
-           FORMAT: Dutch phrase [space] Translation
-           (Do not use bullets. Just new lines.)
-
-         - Part 3: strictly double newline, then header "【Idioms & Proverbs】" (Translate header to ${sourceLang}).
-           List ALL relevant, famous, and authentic fixed expressions/idioms/proverbs.
-           
-           CRITICAL TRANSLATION RULES FOR IDIOMS:
-           1. Translate the ACTUAL MEANING (semantics), not literal.
-           2. If ${sourceLang} has an equivalent proverb, YOU MUST USE THAT EQUIVALENT.
-           3. The Dutch Idiom/Proverb MUST be bolded using markdown (**text**).
-           4. DO NOT use bullet points.
-           5. DO NOT use quotation marks.
-           
-           FORMAT PER IDIOM (Strict Block Structure):
-           **[Dutch Idiom]**
-           [Word for 'Meaning' in ${sourceLang}]: [Real Meaning/Equivalent in ${sourceLang}]
-           [Word for 'Example' in ${sourceLang}]: [Dutch Sentence]
-           [Word for 'Translation' in ${sourceLang}]: [Translation]
-
-           (Ensure there is a blank line between distinct idioms).
-         
-      5. Synonyms/Antonyms: Max 5 items each.
-      6. OUTPUT: Pure JSON.
-      
-      Instructions:
-      1. DEFINITION and USAGE NOTE must be written in ${sourceLang}.
-      2. SYNONYMS, ANTONYMS, PLURALS, and VERB FORMS must be in the TARGET LANGUAGE (${targetLang}) and NOT translated.
-      3. Do NOT use English unless ${sourceLang} is explicitly English.
-
-      STRICT VALIDATION:
-      1. Check if "${term}" is a valid Dutch word, phrase, or common loanword.
-      2. Check for SPELLING ERRORS (e.g. "spanend" -> INVALID).
-      3. If INVALID, return JSON with 'definition': "NOT_DUTCH".
+      OUTPUT: Pure JSON matching the schema.
     `;
 
-    // CHANGED: Reverted to gemini-2.5-flash for speed as requested
     console.log("Using text model: gemini-2.5-flash");
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -495,7 +437,7 @@ export const generateDefinition = async (
           type: Type.OBJECT,
           properties: {
             definition: { type: Type.STRING },
-            // REORDERED: Examples moved up in schema to encourage priority
+            // Examples High Priority
             examples: {
               type: Type.ARRAY,
               items: {
@@ -506,7 +448,7 @@ export const generateDefinition = async (
                 }
               }
             },
-            usageNote: { type: Type.STRING, description: "Detailed structured note with Collocations and Idioms" },
+            usageNote: { type: Type.STRING, description: "Detailed structured note including Near Synonyms, Collocations, and Idioms" },
             grammar: {
               type: Type.OBJECT,
               properties: {
