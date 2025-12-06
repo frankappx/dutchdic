@@ -207,6 +207,39 @@ const addWatermark = (base64Image: string): Promise<string> => {
   });
 };
 
+// --- HELPER: Normalize AI Response ---
+const normalizeAiResponse = (json: any) => {
+  // Ensure examples exist
+  if (!json.examples || !Array.isArray(json.examples)) {
+    json.examples = [];
+  }
+  
+  // Normalize examples structure
+  if (json.examples.length > 0) {
+    json.examples = json.examples.map((ex: any) => ({
+      target: ex.dutch || ex.target || "",
+      source: ex.translation || ex.source || ""
+    }));
+  }
+
+  // Ensure grammar arrays are arrays
+  if (json.grammar) {
+    if (typeof json.grammar.synonyms === 'string') {
+       json.grammar.synonyms = json.grammar.synonyms.split(',').map((s: string) => s.trim()).filter((s: string) => s);
+    } else if (!Array.isArray(json.grammar.synonyms)) {
+       json.grammar.synonyms = [];
+    }
+
+    if (typeof json.grammar.antonyms === 'string') {
+       json.grammar.antonyms = json.grammar.antonyms.split(',').map((s: string) => s.trim()).filter((s: string) => s);
+    } else if (!Array.isArray(json.grammar.antonyms)) {
+       json.grammar.antonyms = [];
+    }
+  }
+
+  return json;
+};
+
 // --- CLAUDE API ---
 
 export const generateDefinitionClaude = async (
@@ -251,8 +284,8 @@ export const generateDefinitionClaude = async (
           - plural: 名词标复数
           - verbForms: 动词标三主式
           - adjectiveForms: 形容词的比较级别和最高级
-          - synonyms: 【同义词】(荷兰语)
-          - antonyms: 【反义词】(荷兰语)
+          - synonyms: 【同义词】(荷兰语, array)
+          - antonyms: 【反义词】(荷兰语, array)
       4. usageNote: 包含以下三个部分，使用特定标题格式 (Rich Text String)。
           ⚠️ 重要：以下标题和标签必须翻译成 ${sourceLang} (Translate headers/labels to ${sourceLang})：
           
@@ -316,25 +349,11 @@ export const generateDefinitionClaude = async (
     }
 
     const textContent = data.content[0].text;
-    
-    // Clean potential markdown code blocks
     const cleanJson = textContent.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
     
     try {
        const json = JSON.parse(cleanJson);
-       
-       // CRITICAL FIX: Ensure examples array exists
-       if (!json.examples || !Array.isArray(json.examples)) {
-          json.examples = [];
-       }
-
-       if (json.examples.length > 0) {
-         json.examples = json.examples.map((ex: any) => ({
-           target: ex.dutch || ex.target || "",
-           source: ex.translation || ex.source || ""
-         }));
-       }
-       return json;
+       return normalizeAiResponse(json);
     } catch (parseError) {
        console.error("JSON Parse Error:", textContent);
        throw new Error("Failed to parse JSON from Claude response");
@@ -383,6 +402,14 @@ export const generateDefinition = async (
           ...(data.grammar_data || {}),
           partOfSpeech: data.part_of_speech || data.grammar_data?.partOfSpeech
         };
+        
+        // Ensure Synonyms/Antonyms are arrays from DB data
+        if (typeof mergedGrammar.synonyms === 'string') {
+          mergedGrammar.synonyms = mergedGrammar.synonyms.split(',').map((s: string) => s.trim()).filter((s: string) => s);
+        }
+        if (typeof mergedGrammar.antonyms === 'string') {
+          mergedGrammar.antonyms = mergedGrammar.antonyms.split(',').map((s: string) => s.trim()).filter((s: string) => s);
+        }
 
         return {
           term: data.term,
@@ -442,8 +469,8 @@ export const generateDefinition = async (
           - plural: 名词标复数
           - verbForms: 动词标三主式
           - adjectiveForms: 形容词的比较级别和最高级
-          - synonyms: 【同义词】(荷兰语)
-          - antonyms: 【反义词】(荷兰语)
+          - synonyms: 【同义词】(荷兰语, array)
+          - antonyms: 【反义词】(荷兰语, array)
       4. usageNote: 包含以下三个部分，使用特定标题格式 (Rich Text String)。
           ⚠️ 重要：以下标题和标签必须翻译成 ${sourceLang} (Translate headers/labels to ${sourceLang})：
           
@@ -490,18 +517,17 @@ export const generateDefinition = async (
           type: Type.OBJECT,
           properties: {
             definition: { type: Type.STRING },
-            // Examples High Priority
             examples: {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  dutch: { type: Type.STRING, description: "The sentence in Dutch (Target Language)" },
-                  translation: { type: Type.STRING, description: `The translation in ${sourceLang} (Source Language)` },
+                  dutch: { type: Type.STRING },
+                  translation: { type: Type.STRING },
                 }
               }
             },
-            usageNote: { type: Type.STRING, description: "Detailed structured note including Tips, Collocations, and Idioms" },
+            usageNote: { type: Type.STRING },
             grammar: {
               type: Type.OBJECT,
               properties: {
@@ -523,20 +549,8 @@ export const generateDefinition = async (
     text = text.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
 
     const json = JSON.parse(text);
+    return normalizeAiResponse(json);
 
-    // CRITICAL FIX: Ensure examples array exists
-    if (!json.examples || !Array.isArray(json.examples)) {
-      json.examples = [];
-    }
-
-    if (json.examples.length > 0) {
-      json.examples = json.examples.map((ex: any) => ({
-        target: ex.dutch || ex.target || "",
-        source: ex.translation || ex.source || ""
-      }));
-    }
-
-    return json;
   } catch (error) {
     console.error("Gemini API Error (generateDefinition):", error);
     return null;

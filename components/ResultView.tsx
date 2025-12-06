@@ -337,7 +337,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                </div>
              )}
 
-             {entry.grammar.synonyms && entry.grammar.synonyms.length > 0 && (
+             {entry.grammar.synonyms && Array.isArray(entry.grammar.synonyms) && entry.grammar.synonyms.length > 0 && (
                <div className="flex gap-2 text-sm">
                  <span className="text-gray-400 font-bold uppercase tracking-wide w-20 flex-shrink-0">{labels.synonyms || "Synonyms"}:</span>
                  <div className="flex flex-wrap gap-1">
@@ -348,7 +348,7 @@ const ResultView: React.FC<ResultViewProps> = ({ entry, onSave, onUpdate, isSave
                </div>
              )}
 
-             {entry.grammar.antonyms && entry.grammar.antonyms.length > 0 && (
+             {entry.grammar.antonyms && Array.isArray(entry.grammar.antonyms) && entry.grammar.antonyms.length > 0 && (
                <div className="flex gap-2 text-sm">
                  <span className="text-gray-400 font-bold uppercase tracking-wide w-20 flex-shrink-0">{labels.antonyms || "Antonyms"}:</span>
                  <div className="flex flex-wrap gap-1">
