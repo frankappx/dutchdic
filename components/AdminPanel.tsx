@@ -156,7 +156,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onBack }) => {
       textProvider
     };
 
-    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, claudeKey, voiceIds, supabaseUrl, targetLang, config, addLog);
+    // Trim the key before sending
+    const cleanedClaudeKey = claudeKey.trim();
+
+    await processBatch(words, serviceKey, geminiKey, elevenLabsKey, cleanedClaudeKey, voiceIds, supabaseUrl, targetLang, config, addLog);
     
     setIsProcessing(false);
   };

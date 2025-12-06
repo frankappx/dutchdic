@@ -214,10 +214,14 @@ export const generateDefinitionClaude = async (
   sourceLang: string, 
   targetLang: string,
   claudeKey: string
-): Promise<any | null> => {
+): Promise<any> => {
   // Using stable Claude 3.5 Sonnet
   console.log("Using text model: Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)");
   
+  if (!claudeKey) {
+     throw new Error("Missing Claude API Key");
+  }
+
   const prompt = `
       You are a Strict Dictionary API & Cultural Expert.
       Task: Analyze the term "${term}" for a Dutch learner.
@@ -281,7 +285,7 @@ export const generateDefinitionClaude = async (
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": claudeKey,
+        "x-api-key": claudeKey.trim(), // Ensure no whitespace
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
         // CORRECT HEADER for browser usage
@@ -295,31 +299,40 @@ export const generateDefinitionClaude = async (
     });
 
     if (!response.ok) {
-       const err = await response.json();
-       console.error("Claude API Error:", err);
-       throw new Error(`Claude API Error: ${err.error?.message || response.statusText}`);
+       const err = await response.json().catch(() => ({}));
+       console.error("Claude API Error Body:", err);
+       // Throw a descriptive error
+       throw new Error(`Claude API Error ${response.status}: ${err.error?.message || response.statusText}`);
     }
 
     const data = await response.json();
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+        throw new Error("Invalid Claude Response Structure");
+    }
+
     const textContent = data.content[0].text;
     
     // Clean potential markdown code blocks
     const cleanJson = textContent.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
     
-    const json = JSON.parse(cleanJson);
-    
-    if (json.examples && Array.isArray(json.examples)) {
-      json.examples = json.examples.map((ex: any) => ({
-        target: ex.dutch || ex.target,
-        source: ex.translation || ex.source
-      }));
+    try {
+       const json = JSON.parse(cleanJson);
+       if (json.examples && Array.isArray(json.examples)) {
+         json.examples = json.examples.map((ex: any) => ({
+           target: ex.dutch || ex.target,
+           source: ex.translation || ex.source
+         }));
+       }
+       return json;
+    } catch (parseError) {
+       console.error("JSON Parse Error:", textContent);
+       throw new Error("Failed to parse JSON from Claude response");
     }
-    
-    return json;
 
   } catch (e: any) {
     console.error("Claude Generation Failed:", e);
-    return null;
+    // Rethrow to allow admin panel to see the exact reason
+    throw e;
   }
 };
 
@@ -382,10 +395,13 @@ export const generateDefinition = async (
   const activeClaudeKey = claudeKeyEnv;
   
   if (provider === 'claude' && activeClaudeKey) {
-     const result = await generateDefinitionClaude(term, sourceLang, targetLang, activeClaudeKey);
-     if (result) return result;
-     // If Claude fails, fall through to Gemini as backup
-     console.log("Claude failed, falling back to Gemini...");
+     try {
+       const result = await generateDefinitionClaude(term, sourceLang, targetLang, activeClaudeKey);
+       return result;
+     } catch (e) {
+       console.warn("Claude failed, falling back to Gemini...", e);
+       // Continue to Gemini fallback below
+     }
   }
 
   // 3. GEMINI GENERATION
